@@ -1,12 +1,49 @@
-# OptiScaler AMD PreSR Multipass v2.21
+# Envy-Diamond v2 — AMD Pre-SR Neural Rendering
 
-Neural rendering is disabled by default in fresh installations. Lightning Strength remains 0.5 when neural rendering is enabled.
+## What Changed in v2
 
-HIP worker publication now follows the actual D3D12 ExecuteCommandLists call. Queue binding remains before submission. This avoids launching the capture-wait kernel while its D3D12 capture is still waiting on CPU submission. Multipass ordering, completion fences and timeout protections are retained.
+The external Dynamic Pacing Daemon (`EnvyDynamicPacing.ps1`, `Launch-Envy.bat`, `Launch-Envy-variable.bat`) has been **removed entirely**. It was a runtime workaround that masked the real issue by throttling FPS when AMD HIP timeouts were detected in logs.
 
-Spider-Man Remastered logs showed roughly 3.4 seconds waiting for capture per frame and an access violation in Spider-Man.exe. This change addresses early worker launch; the crash and in-game recovery are not yet confirmed fixed.
+### Root Cause Fix: Windows TDR Configuration
 
-For Spider-Man on AMD, use -forceReflexMarkers in Steam launch options to enable the documented Streamline path while retaining Dxgi=false for ray-tracing compatibility. Select DLSS frame generation in game if exposed, with NvngxFG and the installed Enabler replacement in OptiScaler for MFG. The parameter alone does not establish that MFG is working. Do not enable global DXGI spoofing with ray tracing.
-Reference: https://github.com/optiscaler/OptiScaler/wiki/Marvels-Spider%E2%80%90Man-Remastered
+The actual problem was the Windows TDR (Timeout Detection and Recovery) default timeout of **2 seconds** — far too short for AMD HIP neural-rendering compute kernels competing with game rendering, upscaling, and frame generation for GPU time.
 
-Release build and GPU smoke with multiple passes, queue changes and scale/extent changes passed. Full game testing remains necessary. Extract all files and run Setup.bat with the game closed. License notices retained.
+Setup now configures:
+- `TdrDelay = 8` (from 2s default) — gives HIP kernels time to complete
+- `TdrDdiDelay = 10` (from 5s default) — margin for DDI callbacks
+- `TdrLimitCount = 10` (from 5 default) — more tolerance before system crash
+- `TdrLimitTime = 120` (from 60s default) — wider observation window
+
+Previous TDR values are backed up to `tdr_backup.json` in the game's backup folder.
+
+### GPU-Aware DlssNr Auto-Tune
+
+Setup detects the RDNA generation of the installed AMD GPU and configures `[DlssNr]` parameters accordingly:
+- **RDNA 4**: Full NR enabled (ModelScale=1, NeuralLighting=0.5)
+- **RDNA 3**: Light NR (ModelScale=1, NeuralLighting=0.3)
+- **RDNA 2 or unknown**: NR disabled (insufficient compute throughput)
+
+### Frame Pace Tuning
+
+FSRFG parameters are set to conservative values:
+- `FPTSafetyMarginInMs=0.75` (more GPU headroom during HIP execution)
+- `FPTVarianceFactor=0.3` (aggressive FPS recovery)
+- `FPTHybridSpin=true` (reduces CPU-GPU contention)
+
+### Resource Barriers
+
+UE5 resource barriers are enabled by default:
+- `ColorResourceBarrier=4` (D3D12_RESOURCE_STATE_RENDER_TARGET)
+- `MotionVectorResourceBarrier=8` (D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+
+### FramerateLimit
+
+`FramerateLimit` is set to `0.0` (disabled). The old daemon's static 30fps cap has been removed — FPS are no longer artificially limited because the TDR fix addresses the root cause.
+
+---
+
+HIP worker publication still follows the actual D3D12 ExecuteCommandLists call. Queue binding remains before submission. Multipass ordering, completion fences and timeout protections are retained.
+
+For Spider-Man on AMD, use `-forceReflexMarkers` in Steam launch options to enable the documented Streamline path while retaining `Dxgi=false` for ray-tracing compatibility.
+
+**Restart your PC after the first install for TDR changes to take full effect.**
