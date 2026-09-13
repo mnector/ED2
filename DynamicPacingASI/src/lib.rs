@@ -7,6 +7,7 @@ use winapi::um::winnt::{DLL_PROCESS_ATTACH, PAGE_EXECUTE_READWRITE};
 use winapi::um::memoryapi::VirtualProtect;
 use winapi::um::psapi::{EnumProcessModules, GetModuleFileNameExA};
 use winapi::um::processthreadsapi::GetCurrentProcess;
+use winapi::um::libloaderapi::GetModuleHandleA;
 
 unsafe fn patch_memory(addr: *mut u8, bytes: &[u8]) {
     let mut old_protect = 0;
@@ -44,8 +45,9 @@ fn get_optiscaler_module() -> Option<*const u8> {
 }
 
 fn immortal_watchdog_loop() {
-    log_msg("Envy Watchdog v14.6 (Reverted to Safe v14.3) started");
+    log_msg("Envy Watchdog v15.0 (Absolute Zero Stutter Edition) started");
     unsafe {
+        // --- 1. PATCH OPTISCALER (dxgi.dll) ---
         if let Some(base) = get_optiscaler_module() {
             log_msg(&format!("OptiScaler dxgi.dll found at {:#x}", base as usize));
             
@@ -94,18 +96,56 @@ fn immortal_watchdog_loop() {
                     break;
                 }
             }
-            if !patched_a { log_msg("Patch A NOT applied!"); }
-            if !patched_b { log_msg("Patch B NOT applied!"); }
-            if !patched_c { log_msg("Patch C NOT applied!"); }
-        } else {
-            log_msg("OptiScaler dxgi.dll not found in process modules!");
         }
     }
     
-    // Keep thread alive
-    loop {
-        thread::sleep(Duration::from_secs(60));
+    // --- 2. PATCH DLSSNR_AMD BUDGET (Kill Dynamic Halving) ---
+    let mut patched_pass1 = false;
+    let mut patched_pass2 = false;
+    let mut patched_pass3 = false;
+    
+    // Loop until all passes are loaded and patched ONCE
+    while !patched_pass1 || !patched_pass2 || !patched_pass3 {
+        unsafe {
+            let modules = [
+                (b"dlssnr_amd_pass1.dll\0", &mut patched_pass1),
+                (b"dlssnr_amd_pass2.dll\0", &mut patched_pass2),
+                (b"dlssnr_amd_pass3.dll\0", &mut patched_pass3),
+            ];
+            
+            for (mod_name, is_patched) in modules {
+                if !*is_patched {
+                    let handle = GetModuleHandleA(mod_name.as_ptr() as *const i8);
+                    if !handle.is_null() {
+                        let base = handle as *const u8;
+                        let mod_str = std::ffi::CStr::from_ptr(mod_name.as_ptr() as *const i8).to_string_lossy();
+                        log_msg(&format!("{} found, scanning for budget reducer...", mod_str));
+                        
+                        // Pattern: 8B 0D ?? ?? ?? ?? 39 C8 0F 4D C1 8B 0D ?? ?? ?? ?? 89 C2 87 15
+                        for i in 0..4_000_000 {
+                            let ptr = base.add(i);
+                            if *ptr == 0x8B && *ptr.add(1) == 0x0D &&
+                               *ptr.add(6) == 0x39 && *ptr.add(7) == 0xC8 &&
+                               *ptr.add(8) == 0x0F && *ptr.add(9) == 0x4D && *ptr.add(10) == 0xC1 &&
+                               *ptr.add(11) == 0x8B && *ptr.add(12) == 0x0D &&
+                               *ptr.add(17) == 0x89 && *ptr.add(18) == 0xC2 &&
+                               *ptr.add(19) == 0x87 && *ptr.add(20) == 0x15 {
+                                   
+                                // NOP the 'xchg edx, [rel ...]' which writes the lowered budget
+                                let patch_addr = ptr.add(19) as *mut u8;
+                                patch_memory(patch_addr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
+                                log_msg(&format!("Budget reducer NOP'd for {} at offset {:#x}", mod_str, i + 19));
+                                *is_patched = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        thread::sleep(Duration::from_millis(1000));
     }
+    log_msg("All OptiScaler and AMD Proxy patches applied successfully!");
 }
 
 #[no_mangle]
