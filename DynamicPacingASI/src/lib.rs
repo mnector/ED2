@@ -21,9 +21,19 @@ fn immortal_watchdog_loop() {
                 let ptr = base.add(i);
                 // Pattern: 48 83 F8 10 73 1B
                 if *ptr == 0x48 && *ptr.add(1) == 0x83 && *ptr.add(2) == 0xF8 && *ptr.add(3) == 0x10 && *ptr.add(4) == 0x73 && *ptr.add(5) == 0x1B {
-                    // NOP out the conditional jump (jae short +0x1B)
-                    // 73 1B -> 90 90
-                    patch_memory(ptr.add(4) as *mut u8, &[0x90, 0x90]);
+                    
+                    // We DO NOT NOP the 16ms timeout jump anymore. We WANT the proxy to timeout after 16ms
+                    // so that it gracefully skips/drops the extra frames (preventing infinite GPU queue bloat).
+                    
+                    // Instead, we NOP the instruction that increments the ERROR COUNTER (+0x36 bytes from ptr).
+                    // Original bytes at +0x36: 48 83 81 40 02 00 00 01  (add qword [rcx+240h], 1)
+                    // We overwrite it with 8 NOPs: 90 90 90 90 90 90 90 90
+                    
+                    let error_counter_ptr = ptr.add(0x36) as *mut u8;
+                    if *error_counter_ptr == 0x48 && *error_counter_ptr.add(1) == 0x83 && *error_counter_ptr.add(2) == 0x81 {
+                        patch_memory(error_counter_ptr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
+                    }
+                    
                     break;
                 }
             }
