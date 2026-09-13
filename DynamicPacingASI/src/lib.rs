@@ -7,7 +7,6 @@ use winapi::um::winnt::{DLL_PROCESS_ATTACH, PAGE_EXECUTE_READWRITE};
 use winapi::um::memoryapi::VirtualProtect;
 use winapi::um::psapi::{EnumProcessModules, GetModuleFileNameExA};
 use winapi::um::processthreadsapi::GetCurrentProcess;
-use winapi::um::libloaderapi::GetModuleHandleA;
 
 unsafe fn patch_memory(addr: *mut u8, bytes: &[u8]) {
     let mut old_protect = 0;
@@ -45,9 +44,8 @@ fn get_optiscaler_module() -> Option<*const u8> {
 }
 
 fn immortal_watchdog_loop() {
-    log_msg("Envy Watchdog v14.5 (No-TLB-Stutter Edition) started");
+    log_msg("Envy Watchdog v14.6 (Reverted to Safe v14.3) started");
     unsafe {
-        // --- 1. PATCH OPTISCALER (dxgi.dll) ---
         if let Some(base) = get_optiscaler_module() {
             log_msg(&format!("OptiScaler dxgi.dll found at {:#x}", base as usize));
             
@@ -104,39 +102,9 @@ fn immortal_watchdog_loop() {
         }
     }
     
-    // --- 2. PATCH DLSSNR_AMD (Dynamic Spin Cap Loop) ---
-    // This runs continuously to catch dynamically loaded models, but without VirtualProtect!
+    // Keep thread alive
     loop {
-        unsafe {
-            let modules = [
-                b"dlssnr_amd_pass1.dll\0",
-                b"dlssnr_amd_pass2.dll\0",
-                b"dlssnr_amd_pass3.dll\0",
-            ];
-            
-            let mut patched_any = false;
-            
-            for &mod_name in &modules {
-                let handle = GetModuleHandleA(mod_name.as_ptr() as *const i8);
-                if !handle.is_null() {
-                    let base = handle as u64;
-                    // RVA 0x76c44 is the spin cap in .data
-                    let cap_ptr = (base + 0x76c44) as *mut u32;
-                    
-                    // The .data section is ALREADY read/write! We do NOT need VirtualProtect.
-                    // Calling VirtualProtect in a loop forces TLB flushes on all cores, causing massive system stutter.
-                    
-                    let current_cap = std::ptr::read_volatile(cap_ptr);
-                    if current_cap < 999999999 {
-                        std::ptr::write_volatile(cap_ptr, 999999999);
-                        log_msg(&format!("Set spin cap to 999999999 for {:?}", std::ffi::CStr::from_ptr(mod_name.as_ptr() as *const i8)));
-                        patched_any = true;
-                    }
-                }
-            }
-        }
-        // Sleep for 500ms
-        thread::sleep(Duration::from_millis(500));
+        thread::sleep(Duration::from_secs(60));
     }
 }
 
