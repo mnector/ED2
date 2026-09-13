@@ -6,11 +6,12 @@ use std::time::{Duration, Instant};
 use winapi::shared::minwindef::{BOOL, DWORD, HINSTANCE, LPVOID, TRUE};
 use winapi::um::winnt::DLL_PROCESS_ATTACH;
 
-const MIN_FPS: f64 = 45.0;
+const MIN_FPS: f64 = 30.0;
 const MAX_FPS: f64 = 120.0;
-const STEP_DOWN: f64 = 0.08;
-const STEP_UP: f64 = 0.02;
-const UP_DELAY_MS: u64 = 8000;
+const STEP_DOWN: f64 = 0.20; // 20% immediate drop to clear queues!
+const STEP_UP: f64 = 0.02;   // 2% climb
+const UP_DELAY_MS: u64 = 12000; // 12s stable before climbing
+const POLL_MS: u64 = 30; // 30ms polling (near real-time)
 
 fn get_game_dir() -> Option<PathBuf> {
     if let Ok(path) = std::env::current_exe() {
@@ -40,7 +41,6 @@ fn set_current_limit(ini_path: &Path, mut new_limit: f64) {
     if new_limit < MIN_FPS { new_limit = MIN_FPS; }
     if new_limit > MAX_FPS { new_limit = MAX_FPS; }
     
-    // Round to nearest integer for cleaner logs
     let new_limit = new_limit.round();
 
     if let Ok(content) = std::fs::read_to_string(ini_path) {
@@ -58,7 +58,6 @@ fn set_current_limit(ini_path: &Path, mut new_limit: f64) {
         }
         
         if !replaced {
-            // Unlikely if INI is well-formed, but just in case
             new_content.push_str(&format!("\r\n[Framerate]\r\nFramerateLimit={}\r\n", new_limit));
         }
         
@@ -80,7 +79,6 @@ fn tail_file(file: &mut Option<File>, path: &Path, pos: &mut u64) -> bool {
     if let Some(f) = file.as_mut() {
         let current_len = f.metadata().map(|m| m.len()).unwrap_or(*pos);
         if current_len < *pos {
-            // File truncated or recreated
             *pos = 0;
             let _ = f.seek(SeekFrom::Start(0));
         }
@@ -91,7 +89,8 @@ fn tail_file(file: &mut Option<File>, path: &Path, pos: &mut u64) -> bool {
             if bytes_read > 0 {
                 *pos += bytes_read as u64;
                 for line in buffer.lines() {
-                    if line.contains("timeout") || line.contains("SPIKE") || line.contains("skipped") {
+                    // Check for warning signs BEFORE they become timeouts
+                    if line.contains("timeout") || line.contains("SPIKE") || line.contains("skipped") || line.contains("host watchdog fired") {
                         spike_detected = true;
                     }
                 }
@@ -113,8 +112,6 @@ fn pacing_loop() {
     let presr_log_path = game_dir.join("amd_presr.log");
     
     let mut last_spike_time = Instant::now();
-    
-    // Ensure starting limit is sane
     let current_limit = read_current_limit(&ini_path);
     if current_limit < MIN_FPS || current_limit == 0.0 {
         set_current_limit(&ini_path, MAX_FPS);
@@ -127,7 +124,7 @@ fn pacing_loop() {
     let mut pos2: u64 = 0;
 
     loop {
-        thread::sleep(Duration::from_millis(250));
+        thread::sleep(Duration::from_millis(POLL_MS));
         
         let mut spike = false;
         if tail_file(&mut file1, &log_path, &mut pos1) { spike = true; }
@@ -137,10 +134,13 @@ fn pacing_loop() {
             last_spike_time = Instant::now();
             let current = read_current_limit(&ini_path);
             let mut new_limit = (current * (1.0 - STEP_DOWN)).floor();
-            if current - new_limit < 1.0 {
-                new_limit = current - 1.0;
+            if current - new_limit < 3.0 {
+                new_limit = current - 3.0; // At least drop 3 FPS immediately
             }
             set_current_limit(&ini_path, new_limit);
+            
+            // Sleep a bit extra after a spike to let the engine clear the queue
+            thread::sleep(Duration::from_millis(1500));
         } else {
             if last_spike_time.elapsed().as_millis() as u64 >= UP_DELAY_MS {
                 let current = read_current_limit(&ini_path);
@@ -151,7 +151,8 @@ fn pacing_loop() {
                     }
                     set_current_limit(&ini_path, new_limit);
                 }
-                last_spike_time = Instant::now();
+                // Reset timer so it takes steps up, not instantly to 120
+                last_spike_time = Instant::now() - Duration::from_millis(UP_DELAY_MS - 2000); 
             }
         }
     }
@@ -159,22 +160,10 @@ fn pacing_loop() {
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "system" fn DllMain(
-    _module: HINSTANCE,
-    call_reason: DWORD,
-    _reserved: LPVOID,
-) -> BOOL {
-    if call_reason == DLL_PROCESS_ATTACH {
-        thread::spawn(move || {
-            pacing_loop();
-        });
-    }
+pub extern "system" fn DllMain(_module: HINSTANCE, call_reason: DWORD, _reserved: LPVOID) -> BOOL {
+    if call_reason == DLL_PROCESS_ATTACH { thread::spawn(move || { pacing_loop(); }); }
     TRUE
 }
-
-// OptiScaler ASI plugin export
 #[no_mangle]
 #[allow(non_snake_case)]
-pub extern "C" fn InitializeASI() {
-    // Some ASI loaders look for this function
-}
+pub extern "C" fn InitializeASI() {}
