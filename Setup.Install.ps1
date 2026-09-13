@@ -77,31 +77,6 @@ Get-ChildItem -LiteralPath $rtgi -File | ForEach-Object {
 }
 $records | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $backup 'manifest.json')
 
-# ── TDR Registry Configuration ──────────────────────────────────────────────
-# AMD HIP neural-rendering kernels run as generic GPU compute.  The default
-# Windows TDR timeout (TdrDelay=2s) is too short for heavy inference passes,
-# causing the driver to kill the kernel mid-execution.  OptiScaler recovers
-# ("retry in 1s with fresh history"), but the user sees stutters and quality
-# loss.  Raising these values gives the HIP backend the headroom it needs.
-$tdrPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'
-$tdrBackup = @{}
-foreach ($key in @('TdrDelay','TdrDdiDelay','TdrLimitCount','TdrLimitTime')) {
-    $current = (Get-ItemProperty -Path $tdrPath -Name $key -ErrorAction SilentlyContinue).$key
-    $tdrBackup[$key] = $current   # may be $null (default)
-}
-# Persist previous TDR values so they can be restored on uninstall.
-$tdrBackup | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $backup 'tdr_backup.json')
-
-$tdrSettings = @{
-    TdrDelay      = 8     # Default 2s  → 8s   for HIP kernel completion
-    TdrDdiDelay   = 10    # Default 5s  → 10s  for DDI callbacks
-    TdrLimitCount = 10    # Default 5   → 10   tolerated TDRs before crash
-    TdrLimitTime  = 120   # Default 60s → 120s observation window
-}
-foreach ($key in $tdrSettings.Keys) {
-    Set-ItemProperty -Path $tdrPath -Name $key -Value $tdrSettings[$key] -Type DWord -ErrorAction SilentlyContinue
-}
-Write-Host 'TDR registry configured for AMD HIP compute workloads.'
 
 # ── GPU Detection & DlssNr Auto-Tune ────────────────────────────────────────
 # Detect the discrete AMD GPU and its RDNA generation to set optimal neural
@@ -192,6 +167,17 @@ Write-Host "OptiScaler.ini tuned for RDNA $rdnaGen."
 Write-Host "Instalado em: $game"
 Write-Host "Proxy: $proxyName"
 Write-Host "Backup em: $backup"
-Write-Host 'TDR configurado. Ative FSR no jogo. Abra o menu do OptiScaler com Insert.'
+
 Write-Host 'Reinicie o computador se for a primeira vez que executa o Envy-Diamond.'
 
+
+# ── Dynamic Pacing ASI Plugin ───────────────────────────────────────────────
+$pluginsDir = Join-Path $game 'OptiScaler\plugins'
+if (-not (Test-Path $pluginsDir)) { New-Item -ItemType Directory -Path $pluginsDir | Out-Null }
+Install-File (Join-Path $PSScriptRoot 'EnvyDynamicPacing.asi') (Join-Path 'OptiScaler\plugins' 'EnvyDynamicPacing.asi')
+
+# Ensure Plugins are enabled in INI
+$iniContent = Set-IniValue $iniContent 'Plugins' 'LoadAsiPlugins' 'true'
+$iniContent | Set-Content $iniDest
+
+Write-Host 'Dynamic Pacing ASI plugin installed. TDR settings were left untouched.'
