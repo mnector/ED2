@@ -1,6 +1,6 @@
 <div align="center">
 
-# 💎 Envy-Diamond (Absolute Zero Stutter Edition) 💎
+# 💎 Envy-Diamond-2-2 (Absolute Zero Stutter Edition) 💎
 
 **Advanced Neural Rendering & Frame Generation Translation Layer for AMD GPUs**
 
@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey?style=for-the-badge)]()
 [![GPU](https://img.shields.io/badge/GPU-AMD%20Radeon-red?style=for-the-badge)]()
 
-Envy-Diamond unlocks the true power of DLSS and OptiScaler features on AMD hardware, injecting a custom proxy to translate calls and deliver massive framerate uplifts!
+Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD hardware, injecting a custom proxy to translate calls and deliver massive framerate uplifts!
 
 </div>
 
@@ -50,7 +50,7 @@ The time budget is permanently frozen at its maximum value (600ms). When OBS spi
 
 ## 📥 Installation
 
-1. Go to the **[Releases](https://github.com/mnector/Envy-Diamond/releases)** tab and download the latest `Envy-Diamond-Release.zip`.
+1. Go to the **[Releases](https://github.com/mnector/Envy-Diamond/releases)** tab and download the latest `Envy-Diamond-2-v0.9.0.zip`.
 2. Extract the contents.
 3. Place `EnvyDynamicPacing.asi` into your game's `OptiScaler/plugins/` directory (e.g. `Palworld\Pal\Binaries\Win64\OptiScaler\plugins\`).
 4. Ensure your `OptiScaler.ini` has `LoadAsiPlugins=true` enabled.
@@ -61,3 +61,4 @@ The time budget is permanently frozen at its maximum value (600ms). When OBS spi
 
 > [!CAUTION]
 > This project modifies game binaries and proxy DLLs in memory. **Use at your own risk in single-player games only.** Do not use in multiplayer games with anti-cheat software, as it will likely result in an account ban.
+
