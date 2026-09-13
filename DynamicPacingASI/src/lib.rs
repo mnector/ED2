@@ -6,10 +6,6 @@ use std::time::{Duration, Instant};
 use winapi::shared::minwindef::{BOOL, DWORD, HINSTANCE, LPVOID, TRUE};
 use winapi::um::winnt::DLL_PROCESS_ATTACH;
 
-const MIN_FPS: f64 = 20.0;
-const MAX_FPS: f64 = 120.0;
-const SAFETY_MARGIN_MULTIPLIER: f64 = 1.15; // +15% time headroom for HIP
-
 fn get_game_dir() -> Option<PathBuf> {
     if let Ok(path) = std::env::current_exe() {
         return path.parent().map(|p| p.to_path_buf());
@@ -17,36 +13,19 @@ fn get_game_dir() -> Option<PathBuf> {
     None
 }
 
-fn read_current_limit(ini_path: &Path) -> f64 {
-    if let Ok(content) = std::fs::read_to_string(ini_path) {
-        for line in content.lines() {
-            if line.starts_with("FramerateLimit=") {
-                if let Some(val_str) = line.split('=').nth(1) {
-                    if let Ok(val) = val_str.trim().parse::<f64>() {
-                        if val > 0.0 {
-                            return val;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    MAX_FPS
-}
-
-fn set_current_limit(ini_path: &Path, mut new_limit: f64) {
-    if new_limit < MIN_FPS { new_limit = MIN_FPS; }
-    if new_limit > MAX_FPS { new_limit = MAX_FPS; }
-    
-    let new_limit = new_limit.floor();
-
+fn set_ini_value(ini_path: &Path, section: &str, key: &str, value: &str) {
     if let Ok(content) = std::fs::read_to_string(ini_path) {
         let mut new_content = String::with_capacity(content.len());
+        let mut in_section = false;
         let mut replaced = false;
         
         for line in content.lines() {
-            if line.starts_with("FramerateLimit=") {
-                new_content.push_str(&format!("FramerateLimit={}\r\n", new_limit));
+            if line.starts_with('[') {
+                in_section = line.trim() == format!("[{}]", section);
+            }
+            
+            if in_section && line.starts_with(&format!("{}=", key)) {
+                new_content.push_str(&format!("{}={}\r\n", key, value));
                 replaced = true;
             } else {
                 new_content.push_str(line);
@@ -54,11 +33,9 @@ fn set_current_limit(ini_path: &Path, mut new_limit: f64) {
             }
         }
         
-        if !replaced {
-            new_content.push_str(&format!("\r\n[Framerate]\r\nFramerateLimit={}\r\n", new_limit));
+        if replaced {
+            let _ = std::fs::write(ini_path, new_content);
         }
-        
-        let _ = std::fs::write(ini_path, new_content);
     }
 }
 
@@ -71,17 +48,20 @@ fn pacing_loop() {
     let ini_path = game_dir.join("OptiScaler.ini");
     let log_path = game_dir.join("dlssnr_on_amd.log");
     
-    let mut current_limit = read_current_limit(&ini_path);
-    if current_limit < MIN_FPS || current_limit == 0.0 {
-        current_limit = MAX_FPS;
-        set_current_limit(&ini_path, current_limit);
-    }
-    
     let mut file: Option<File> = None;
     let mut pos: u64 = 0;
+    
+    let mut healing_mode = false;
+    let mut healing_start = Instant::now();
 
     loop {
         thread::sleep(Duration::from_millis(50));
+        
+        if healing_mode && healing_start.elapsed().as_millis() > 4000 {
+            healing_mode = false;
+            // Restore full quality after 4 seconds of healing (easily > 100 frames to reset budget)
+            set_ini_value(&ini_path, "DlssNr", "AmdModelScale", "1");
+        }
         
         if file.is_none() {
             if let Ok(mut f) = File::open(&log_path) {
@@ -104,28 +84,15 @@ fn pacing_loop() {
                 if bytes_read > 0 {
                     pos += bytes_read as u64;
                     for line in buffer.lines() {
-                        // Proactive Guided Pacing: "network job X done in Y ms"
-                        if let Some(idx) = line.find("done in ") {
-                            let substr = &line[idx + 8..];
-                            if let Some(space_idx) = substr.find(" ms") {
-                                if let Ok(hip_ms) = substr[..space_idx].parse::<f64>() {
-                                    // Calculate maximum safe frames allowed based on HIP pure compute time!
-                                    // We add a safety margin (e.g. 15%) to ensure HIP is always slightly faster than the engine queue
-                                    let target_fps = (1000.0 / (hip_ms * SAFETY_MARGIN_MULTIPLIER)).floor();
-                                    
-                                    if (target_fps - current_limit).abs() >= 1.0 {
-                                        current_limit = target_fps;
-                                        set_current_limit(&ini_path, current_limit);
-                                    }
-                                }
+                        // Detect the death spiral trigger!
+                        if line.contains("host watchdog fired") || line.contains("timeout") || line.contains("SPIKE") {
+                            if !healing_mode {
+                                healing_mode = true;
+                                healing_start = Instant::now();
+                                // Hack the proxy: force compute to 0.1x so it finishes in 1ms.
+                                // This allows the proxy to hit 100 clean frames instantly and restore its 192ms budget cap!
+                                set_ini_value(&ini_path, "DlssNr", "AmdModelScale", "0.1");
                             }
-                        }
-                        
-                        // Emergency mitigation for sudden scene drops
-                        if line.contains("timeout") || line.contains("SPIKE") || line.contains("host watchdog fired") {
-                            current_limit = (current_limit * 0.85).floor(); // 15% drop
-                            set_current_limit(&ini_path, current_limit);
-                            thread::sleep(Duration::from_millis(1500)); // Cool down
                         }
                     }
                 }
