@@ -45,43 +45,47 @@ fn immortal_watchdog_loop() {
                 if !handle.is_null() {
                     let base = handle as u64;
                     
-                    // A. The Iteration Cap (v6.0)
-                    let cap_ptr = (base + 0x76c44) as *mut u32;
-                    let current_cap = std::ptr::read_volatile(cap_ptr);
-                    if current_cap < 999999999 {
-                        std::ptr::write_volatile(cap_ptr, 999999999);
-                    }
+                    // C. The Ultimate Success Trampoline (v11.0)
+                    // We intercept the universal abort handler and redirect it to the success handler, 
+                    // while perfectly restoring the required registers.
+                    let mut abort_ptr: *mut u8 = std::ptr::null_mut();
+                    let mut success_ptr: *mut u8 = std::ptr::null_mut();
                     
-                    // B. The Budget Abort Patch (v10.0)
-                    // We scan for: B8 FF FF FF FF 87 05 ?? ?? ?? ?? E9
-                    // Which is: mov eax, -1 ; xchg eax, [rel...] ; jmp ...
-                    // In v9.0 we only patched the 'mov eax, -1' to 'xor eax, eax'.
-                    // However, 'xchg' swapped our '0' with the OLD value of the memory location,
-                    // which is pre-initialized to -1 by dlssnr! So 'eax' STILL became -1, and OptiScaler STILL triggered the 1s timeout penalty!
-                    // In v10.0, we patch the ENTIRE 11 bytes to:
-                    // xor eax, eax
-                    // mov [rel...], eax
-                    // nop nop nop
-                    // This explicitly sets BOTH eax and the memory location to 0, ensuring an absolute Success return.
                     for i in 0x1000..0x200000 {
                         let ptr = (base + i) as *mut u8;
-                        if *ptr == 0xB8 && *ptr.add(1) == 0xFF && *ptr.add(2) == 0xFF && *ptr.add(3) == 0xFF && *ptr.add(4) == 0xFF {
-                            if *ptr.add(5) == 0x87 && *ptr.add(6) == 0x05 && *ptr.add(11) == 0xE9 {
-                                // Calculate the new RIP offset for mov [rel], eax
-                                let old_offset = std::ptr::read_unaligned(ptr.add(7) as *const i32);
-                                let target_addr = (ptr as i64) + 5 + 6 + (old_offset as i64);
-                                let new_mov_addr = (ptr as i64) + 2;
-                                let new_offset = (target_addr - (new_mov_addr + 6)) as i32;
+                        if abort_ptr.is_null() && 
+                           *ptr == 0x4C && *ptr.add(1) == 0x89 && *ptr.add(2) == 0xF2 && 
+                           *ptr.add(3) == 0x49 && *ptr.add(4) == 0x89 && *ptr.add(5) == 0xF8 && 
+                           *ptr.add(6) == 0x41 && *ptr.add(7) == 0xB9 && *ptr.add(8) == 0x02 && 
+                           *ptr.add(9) == 0x00 && *ptr.add(10) == 0x00 && *ptr.add(11) == 0x00 {
+                            abort_ptr = ptr.sub(7);
+                        }
+                        if success_ptr.is_null() && 
+                           *ptr == 0x85 && *ptr.add(1) == 0xC0 && *ptr.add(2) == 0x4C && 
+                           *ptr.add(3) == 0x8B && *ptr.add(4) == 0xB5 && *ptr.add(5) == 0xC8 && 
+                           *ptr.add(6) == 0x00 && *ptr.add(7) == 0x00 && *ptr.add(8) == 0x00 {
+                            success_ptr = ptr;
+                        }
+                        if !abort_ptr.is_null() && !success_ptr.is_null() {
+                            break;
+                        }
+                    }
 
-                                let mut patch = [0u8; 11];
-                                patch[0] = 0x31; patch[1] = 0xC0; // xor eax, eax
-                                patch[2] = 0x89; patch[3] = 0x05; // mov [rel...], eax
-                                patch[4..8].copy_from_slice(&new_offset.to_le_bytes());
-                                patch[8] = 0x90; patch[9] = 0x90; patch[10] = 0x90; // nop nop nop
+                    if !abort_ptr.is_null() && !success_ptr.is_null() {
+                        if *abort_ptr.add(7) != 0x31 || *abort_ptr.add(8) != 0xC0 {
+                            let orig_rel = std::ptr::read_unaligned(abort_ptr.add(3) as *const i32);
+                            let new_rel = orig_rel + 8;
+                            
+                            let jmp_offset = (success_ptr as i64 - (abort_ptr as i64 + 14)) as i32;
 
-                                patch_memory(ptr, &patch);
-                                break;
-                            }
+                            let mut patch = [0u8; 14];
+                            patch[0] = 0x48; patch[1] = 0x8B; patch[2] = 0x0D; // mov rcx, [rel]
+                            patch[3..7].copy_from_slice(&new_rel.to_le_bytes());
+                            patch[7] = 0x31; patch[8] = 0xC0; // xor eax, eax
+                            patch[9] = 0xE9; // jmp near
+                            patch[10..14].copy_from_slice(&jmp_offset.to_le_bytes());
+
+                            patch_memory(abort_ptr, &patch);
                         }
                     }
                 }
