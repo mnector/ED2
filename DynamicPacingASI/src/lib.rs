@@ -52,17 +52,34 @@ fn immortal_watchdog_loop() {
                         std::ptr::write_volatile(cap_ptr, 999999999);
                     }
                     
-                    // B. The Budget Abort Patch (v9.0)
+                    // B. The Budget Abort Patch (v10.0)
                     // We scan for: B8 FF FF FF FF 87 05 ?? ?? ?? ?? E9
                     // Which is: mov eax, -1 ; xchg eax, [rel...] ; jmp ...
-                    // We replace B8 FF FF FF FF with 31 C0 90 90 90 (xor eax, eax ; nop nop nop)
-                    // This forces the worker to ALWAYS report SUCCESS (0) instead of TIMEOUT/ABORT (-1),
-                    // preventing the 1-second OptiScaler punishment when the game naturally stutters!
+                    // In v9.0 we only patched the 'mov eax, -1' to 'xor eax, eax'.
+                    // However, 'xchg' swapped our '0' with the OLD value of the memory location,
+                    // which is pre-initialized to -1 by dlssnr! So 'eax' STILL became -1, and OptiScaler STILL triggered the 1s timeout penalty!
+                    // In v10.0, we patch the ENTIRE 11 bytes to:
+                    // xor eax, eax
+                    // mov [rel...], eax
+                    // nop nop nop
+                    // This explicitly sets BOTH eax and the memory location to 0, ensuring an absolute Success return.
                     for i in 0x1000..0x200000 {
                         let ptr = (base + i) as *mut u8;
                         if *ptr == 0xB8 && *ptr.add(1) == 0xFF && *ptr.add(2) == 0xFF && *ptr.add(3) == 0xFF && *ptr.add(4) == 0xFF {
                             if *ptr.add(5) == 0x87 && *ptr.add(6) == 0x05 && *ptr.add(11) == 0xE9 {
-                                patch_memory(ptr, &[0x31, 0xC0, 0x90, 0x90, 0x90]);
+                                // Calculate the new RIP offset for mov [rel], eax
+                                let old_offset = std::ptr::read_unaligned(ptr.add(7) as *const i32);
+                                let target_addr = (ptr as i64) + 5 + 6 + (old_offset as i64);
+                                let new_mov_addr = (ptr as i64) + 2;
+                                let new_offset = (target_addr - (new_mov_addr + 6)) as i32;
+
+                                let mut patch = [0u8; 11];
+                                patch[0] = 0x31; patch[1] = 0xC0; // xor eax, eax
+                                patch[2] = 0x89; patch[3] = 0x05; // mov [rel...], eax
+                                patch[4..8].copy_from_slice(&new_offset.to_le_bytes());
+                                patch[8] = 0x90; patch[9] = 0x90; patch[10] = 0x90; // nop nop nop
+
+                                patch_memory(ptr, &patch);
                                 break;
                             }
                         }
