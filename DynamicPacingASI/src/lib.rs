@@ -7,6 +7,7 @@ use winapi::um::winnt::{DLL_PROCESS_ATTACH, PAGE_EXECUTE_READWRITE};
 use winapi::um::memoryapi::VirtualProtect;
 use winapi::um::psapi::{EnumProcessModules, GetModuleFileNameExA};
 use winapi::um::processthreadsapi::GetCurrentProcess;
+use winapi::um::libloaderapi::GetModuleHandleA;
 
 unsafe fn patch_memory(addr: *mut u8, bytes: &[u8]) {
     let mut old_protect = 0;
@@ -44,8 +45,9 @@ fn get_optiscaler_module() -> Option<*const u8> {
 }
 
 fn immortal_watchdog_loop() {
-    log_msg("Envy Watchdog v14.3 started (The Immortal Edition)");
+    log_msg("Envy Watchdog v14.4 (The Ultimate Edition) started");
     unsafe {
+        // --- 1. PATCH OPTISCALER (dxgi.dll) ---
         if let Some(base) = get_optiscaler_module() {
             log_msg(&format!("OptiScaler dxgi.dll found at {:#x}", base as usize));
             
@@ -79,14 +81,11 @@ fn immortal_watchdog_loop() {
                 }
                 
                 // PATCH C: Force retry-in-1s branch to ALWAYS skip penalty
-                // Pattern: B1 01 48 8B 06 44 89 80 04 01 00 00 84 C9 0F 84 CF 00 00 00
                 if !patched_c && *ptr == 0xB1 && *ptr.add(1) == 0x01 && *ptr.add(2) == 0x48 && *ptr.add(3) == 0x8B &&
                    *ptr.add(4) == 0x06 && *ptr.add(5) == 0x44 && *ptr.add(12) == 0x84 && *ptr.add(13) == 0xC9 && 
                    *ptr.add(14) == 0x0F && *ptr.add(15) == 0x84 {
-                    let patch_addr = ptr.add(14) as *mut u8; // Points to 0F 84 CF 00 00 00
+                    let patch_addr = ptr.add(14) as *mut u8; 
                     if *patch_addr == 0x0F {
-                        // Change 'je near' to 'jmp near'
-                        // je near is 6 bytes (0F 84 CF 00 00 00). jmp near is 5 bytes (E9 D0 00 00 00 90)
                         patch_memory(patch_addr, &[0xE9, 0xD0, 0x00, 0x00, 0x00, 0x90]);
                         patched_c = true;
                         log_msg(&format!("Patch C (Retry Jump) applied at offset {:#x}", i + 14));
@@ -105,9 +104,38 @@ fn immortal_watchdog_loop() {
         }
     }
     
-    // Keep thread alive
+    // --- 2. PATCH DLSSNR_AMD (Dynamic Spin Cap Loop) ---
+    // This runs continuously to catch dynamically loaded models
     loop {
-        thread::sleep(Duration::from_secs(60));
+        unsafe {
+            let modules = [
+                b"dlssnr_amd_pass1.dll\0",
+                b"dlssnr_amd_pass2.dll\0",
+                b"dlssnr_amd_pass3.dll\0",
+            ];
+            
+            for &mod_name in &modules {
+                let handle = GetModuleHandleA(mod_name.as_ptr() as *const i8);
+                if !handle.is_null() {
+                    let base = handle as u64;
+                    // RVA 0x76c44 is the spin cap in .data
+                    let cap_ptr = (base + 0x76c44) as *mut u32;
+                    
+                    // .data section requires VirtualProtect just in case
+                    let mut old_protect = 0;
+                    VirtualProtect(cap_ptr as *mut _, 4, PAGE_EXECUTE_READWRITE, &mut old_protect);
+                    
+                    let current_cap = std::ptr::read_volatile(cap_ptr);
+                    if current_cap < 999999999 {
+                        std::ptr::write_volatile(cap_ptr, 999999999);
+                        log_msg(&format!("Set spin cap to 999999999 for {:?}", std::ffi::CStr::from_ptr(mod_name.as_ptr() as *const i8)));
+                    }
+                    
+                    VirtualProtect(cap_ptr as *mut _, 4, old_protect, &mut old_protect);
+                }
+            }
+        }
+        thread::sleep(Duration::from_millis(500));
     }
 }
 
