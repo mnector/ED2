@@ -5,30 +5,25 @@ use winapi::um::winnt::{DLL_PROCESS_ATTACH, PAGE_EXECUTE_READWRITE};
 use winapi::um::libloaderapi::GetModuleHandleA;
 use winapi::um::memoryapi::VirtualProtect;
 
-unsafe fn patch_memory(addr: *mut u8, new_val: u8) {
+unsafe fn patch_memory(addr: *mut u8, bytes: &[u8]) {
     let mut old_protect = 0;
-    VirtualProtect(addr as *mut _, 1, PAGE_EXECUTE_READWRITE, &mut old_protect);
-    *addr = new_val;
-    VirtualProtect(addr as *mut _, 1, old_protect, &mut old_protect);
+    VirtualProtect(addr as *mut _, bytes.len(), PAGE_EXECUTE_READWRITE, &mut old_protect);
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), addr, bytes.len());
+    VirtualProtect(addr as *mut _, bytes.len(), old_protect, &mut old_protect);
 }
 
 fn immortal_watchdog_loop() {
-    // 1. Patch dxgi.dll 16ms GPU timeout
     unsafe {
         let dxgi_handle = GetModuleHandleA(b"dxgi.dll\0".as_ptr() as *const i8);
         if !dxgi_handle.is_null() {
             let base = dxgi_handle as *const u8;
             for i in 0..2_000_000 {
                 let ptr = base.add(i);
-                // Windows might throw access violation if we read out of bounds or protected pages,
-                // but usually the first 2MB contains the .text section.
-                // A safer way is to use a structured exception handler or VirtualQuery, 
-                // but since we know the RVA is ~0x14551, scanning up to 0x200000 is usually safe in mapped PE.
-                // To be completely safe against unmapped pages, we'll just check if ptr is readable.
-                // But for a quick ASI, this is fine since .text is well within 2MB and contiguous.
-                if *ptr == 0x48 && *ptr.add(1) == 0x83 && *ptr.add(2) == 0xF8 && *ptr.add(3) == 0x10 && *ptr.add(4) == 0x73 {
-                    // Patch 0x10 (16ms) to 0x7F (127ms)
-                    patch_memory(ptr.add(3) as *mut u8, 0x7F);
+                // Pattern: 48 83 F8 10 73 1B
+                if *ptr == 0x48 && *ptr.add(1) == 0x83 && *ptr.add(2) == 0xF8 && *ptr.add(3) == 0x10 && *ptr.add(4) == 0x73 && *ptr.add(5) == 0x1B {
+                    // NOP out the conditional jump (jae short +0x1B)
+                    // 73 1B -> 90 90
+                    patch_memory(ptr.add(4) as *mut u8, &[0x90, 0x90]);
                     break;
                 }
             }
