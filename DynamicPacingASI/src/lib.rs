@@ -45,7 +45,7 @@ fn get_optiscaler_module() -> Option<*const u8> {
 }
 
 fn immortal_watchdog_loop() {
-    log_msg("Envy Watchdog v14.4 (The Ultimate Edition) started");
+    log_msg("Envy Watchdog v14.5 (No-TLB-Stutter Edition) started");
     unsafe {
         // --- 1. PATCH OPTISCALER (dxgi.dll) ---
         if let Some(base) = get_optiscaler_module() {
@@ -105,7 +105,7 @@ fn immortal_watchdog_loop() {
     }
     
     // --- 2. PATCH DLSSNR_AMD (Dynamic Spin Cap Loop) ---
-    // This runs continuously to catch dynamically loaded models
+    // This runs continuously to catch dynamically loaded models, but without VirtualProtect!
     loop {
         unsafe {
             let modules = [
@@ -114,6 +114,8 @@ fn immortal_watchdog_loop() {
                 b"dlssnr_amd_pass3.dll\0",
             ];
             
+            let mut patched_any = false;
+            
             for &mod_name in &modules {
                 let handle = GetModuleHandleA(mod_name.as_ptr() as *const i8);
                 if !handle.is_null() {
@@ -121,20 +123,19 @@ fn immortal_watchdog_loop() {
                     // RVA 0x76c44 is the spin cap in .data
                     let cap_ptr = (base + 0x76c44) as *mut u32;
                     
-                    // .data section requires VirtualProtect just in case
-                    let mut old_protect = 0;
-                    VirtualProtect(cap_ptr as *mut _, 4, PAGE_EXECUTE_READWRITE, &mut old_protect);
+                    // The .data section is ALREADY read/write! We do NOT need VirtualProtect.
+                    // Calling VirtualProtect in a loop forces TLB flushes on all cores, causing massive system stutter.
                     
                     let current_cap = std::ptr::read_volatile(cap_ptr);
                     if current_cap < 999999999 {
                         std::ptr::write_volatile(cap_ptr, 999999999);
                         log_msg(&format!("Set spin cap to 999999999 for {:?}", std::ffi::CStr::from_ptr(mod_name.as_ptr() as *const i8)));
+                        patched_any = true;
                     }
-                    
-                    VirtualProtect(cap_ptr as *mut _, 4, old_protect, &mut old_protect);
                 }
             }
         }
+        // Sleep for 500ms
         thread::sleep(Duration::from_millis(500));
     }
 }
