@@ -9,3 +9,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 winapi = { version = "0.3.9", features = ["minwindef", "libloaderapi", "winnt", "processthreadsapi", "synchapi"] }
+
+[dependencies.winapi]
+version = "0.3.9"
+features = ["minwindef", "winnt", "libloaderapi", "memoryapi"]
