@@ -1,6 +1,6 @@
 <div align="center">
 
-# 💎 Envy-Diamond (The Immortal Edition) 💎
+# 💎 Envy-Diamond (Absolute Zero Stutter Edition) 💎
 
 **Advanced Neural Rendering & Frame Generation Translation Layer for AMD GPUs**
 
@@ -17,42 +17,34 @@ Envy-Diamond unlocks the true power of DLSS and OptiScaler features on AMD hardw
 ## ⚡ Features
 
 * 🚀 **AMD Neural Rendering Support:** Experience high-end upscaling paths natively adapted for AMD architecture via HIP.
-* 🛡️ **The Digital Bottomless Pit (v14.6):** A revolutionary memory-patching ASI plugin that permanently disables OptiScaler's catastrophic 1-second DLSS-NR deactivation penalties (mini-freezes).
+* 🛡️ **The Digital Bottomless Pit (v15.0):** A revolutionary memory-patching ASI plugin that perfectly prevents frame-drops and DLSS deactivations by freezing the internal `dlssnr_amd` time budget.
 * ⚙️ **Native TDR Configuration:** Setup automatically configures Windows TDR registry to prevent AMD HIP compute kernel timeouts during heavy neural rendering passes.
 * 🧠 **GPU-Aware Auto-Tune:** Detects your RDNA generation at install time and configures optimal DlssNr parameters.
 * 🔧 **Unreal Engine 5 Hardened:** Includes automatic resource barrier fixes to prevent memory access violations and colorful artifacting in UE games.
 
 ---
 
-## 🛑 The 1-Second Timeout Problem
+## 🛑 The Micro-Stutter Problem
 
 When running DLSS Neural Rendering (DLSS-NR) via OptiScaler on AMD hardware (especially while using heavy software like OBS Studio), the GPU queue can occasionally bloat. A frame that normally takes 30ms might take 190ms to submit.
 
-When this happens, the AMD proxy (`dlssnr_amd`) hits its internal iteration cap (1,298,944 iterations) and aborts the frame. Normally, this just causes a single dropped frame (an almost imperceptible micro-stutter) which is the correct and healthy way to avoid completely paralyzing the game thread.
+When this happens, the AMD proxy (`dlssnr_amd`) initiates a "Host Watchdog" time budget to prevent the game from freezing. The default budget starts at 600ms, but dynamically halves itself on every spike, rapidly plummeting to `87ms`. 
 
-**However**, OptiScaler (`dxgi.dll`) contains two hidden "booby traps" that punish the GPU for dropping a frame:
-1. **The Sync Timeout:** At `0x180019442`, if ANY AMD pass exceeds its deadline, OptiScaler falls into a `recovery pending` block.
-2. **The Job Desync Timeout:** At `0x180014750`, if the job completion counter desyncs from the expected count, OptiScaler falls into a `retry in 1s` block.
+Because the budget drops to 87ms, any frame that takes 190ms to process is instantly aborted. OptiScaler is forced to present the raw, unprocessed 1080p frame to the screen, which users perceive as a jarring 1-fps micro-stutter without anti-aliasing.
 
-If either of these traps fire, OptiScaler completely disables the DLSS Neural Renderer for **1,000 milliseconds**, resulting in a massive, jarring 1-second stutter (mini-cuelgue) in your game.
+Furthermore, if the frame takes too long, OptiScaler's `dxgi.dll` falls into internal "booby traps" (at `0x180019442` and `0x180014750`) that completely disable the DLSS Neural Renderer for **1,000 milliseconds**, compounding the stutter.
 
 ---
 
 ## 🛠️ The Solution: EnvyDynamicPacing.asi
 
-`EnvyDynamicPacing.asi` (The Immortal Edition) is a custom ASI plugin loaded directly by OptiScaler.
+`EnvyDynamicPacing.asi` is a custom ASI plugin loaded directly by OptiScaler that solves both issues via surgical memory patching:
 
-Upon initialization, it intelligently scans the process memory to locate the true OptiScaler `dxgi.dll` module (bypassing the native Microsoft `dxgi.dll`). It then dynamically seeks out the exact assembly instructions for both booby traps and surgically modifies their conditional branches (`je`) into unconditional bypasses (`jmp`).
+1. **OptiScaler 1-Second Penalty Bypass:** It locates the `dxgi.dll` module and dynamically rewrites the assembly branches (`je` -> `jmp`) for the two timeout penalties, making them mathematically unreachable.
+2. **AMD Proxy Budget Freezer:** It scans `dlssnr_amd_pass*.dll` modules to find the exact `xchg` instruction that dynamically lowers the time budget, and completely NOPs it out (replacing it with `0x90`). 
 
 **The Result:** 
-* OptiScaler's 1-second penalty code becomes mathematically unreachable. 
-* The neural renderer **never** deactivates.
-* If a frame takes too long (e.g. during an OBS game capture spike), the system gracefully drops that single frame and immediately continues with the next one, providing near-perfect fluidity even under extreme GPU load.
-
-### ⚠️ A Note on the Spin Cap (Why we don't patch dlssnr_amd)
-Earlier versions attempted to patch the `dlssnr_amd` iteration cap (RVA `0x76C44`) to `999,999,999` to prevent frames from dropping. **Do not do this.** 
-
-The iteration cap is actually the "batch size" for checking the time budget (Host Watchdog). Changing it to 999 million forces the CPU to busy-wait blindly for **6.6 seconds** before realizing a frame was lost, literally paralyzing the game thread. The natural micro-stutter of a dropped frame is vastly preferable to a 6-second freeze.
+The time budget is permanently frozen at its maximum value (600ms). When OBS spikes the game to 190ms, the proxy simply waits patiently. The game engine gracefully yields (relentiza) to the GPU's pace, processes the interpolated frame successfully, and presents it. Unprocessed raw frames are completely eliminated, achieving perfect frame pacing under heavy load without catastrophic 6-second TLB-shootdown freezes!
 
 ---
 
