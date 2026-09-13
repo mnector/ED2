@@ -1,6 +1,6 @@
 <div align="center">
 
-# 💎 Envy-Diamond-2-2 (Absolute Zero Stutter Edition) 💎
+# 💎 Envy-Diamond-2 💎
 
 **Advanced Neural Rendering & Frame Generation Translation Layer for AMD GPUs**
 
