@@ -6,12 +6,9 @@ use std::time::{Duration, Instant};
 use winapi::shared::minwindef::{BOOL, DWORD, HINSTANCE, LPVOID, TRUE};
 use winapi::um::winnt::DLL_PROCESS_ATTACH;
 
-const MIN_FPS: f64 = 30.0;
+const MIN_FPS: f64 = 20.0;
 const MAX_FPS: f64 = 120.0;
-const STEP_DOWN: f64 = 0.20; // 20% immediate drop to clear queues!
-const STEP_UP: f64 = 0.02;   // 2% climb
-const UP_DELAY_MS: u64 = 12000; // 12s stable before climbing
-const POLL_MS: u64 = 30; // 30ms polling (near real-time)
+const SAFETY_MARGIN_MULTIPLIER: f64 = 1.15; // +15% time headroom for HIP
 
 fn get_game_dir() -> Option<PathBuf> {
     if let Ok(path) = std::env::current_exe() {
@@ -41,7 +38,7 @@ fn set_current_limit(ini_path: &Path, mut new_limit: f64) {
     if new_limit < MIN_FPS { new_limit = MIN_FPS; }
     if new_limit > MAX_FPS { new_limit = MAX_FPS; }
     
-    let new_limit = new_limit.round();
+    let new_limit = new_limit.floor();
 
     if let Ok(content) = std::fs::read_to_string(ini_path) {
         let mut new_content = String::with_capacity(content.len());
@@ -65,42 +62,6 @@ fn set_current_limit(ini_path: &Path, mut new_limit: f64) {
     }
 }
 
-fn tail_file(file: &mut Option<File>, path: &Path, pos: &mut u64) -> bool {
-    if file.is_none() {
-        if let Ok(mut f) = File::open(path) {
-            let _ = f.seek(SeekFrom::End(0));
-            *pos = f.stream_position().unwrap_or(0);
-            *file = Some(f);
-        }
-    }
-    
-    let mut spike_detected = false;
-    
-    if let Some(f) = file.as_mut() {
-        let current_len = f.metadata().map(|m| m.len()).unwrap_or(*pos);
-        if current_len < *pos {
-            *pos = 0;
-            let _ = f.seek(SeekFrom::Start(0));
-        }
-        
-        let _ = f.seek(SeekFrom::Start(*pos));
-        let mut buffer = String::new();
-        if let Ok(bytes_read) = f.read_to_string(&mut buffer) {
-            if bytes_read > 0 {
-                *pos += bytes_read as u64;
-                for line in buffer.lines() {
-                    // Check for warning signs BEFORE they become timeouts
-                    if line.contains("timeout") || line.contains("SPIKE") || line.contains("skipped") || line.contains("host watchdog fired") {
-                        spike_detected = true;
-                    }
-                }
-            }
-        }
-    }
-    
-    spike_detected
-}
-
 fn pacing_loop() {
     let game_dir = match get_game_dir() {
         Some(dir) => dir,
@@ -109,50 +70,65 @@ fn pacing_loop() {
     
     let ini_path = game_dir.join("OptiScaler.ini");
     let log_path = game_dir.join("dlssnr_on_amd.log");
-    let presr_log_path = game_dir.join("amd_presr.log");
     
-    let mut last_spike_time = Instant::now();
-    let current_limit = read_current_limit(&ini_path);
+    let mut current_limit = read_current_limit(&ini_path);
     if current_limit < MIN_FPS || current_limit == 0.0 {
-        set_current_limit(&ini_path, MAX_FPS);
+        current_limit = MAX_FPS;
+        set_current_limit(&ini_path, current_limit);
     }
     
-    let mut file1: Option<File> = None;
-    let mut pos1: u64 = 0;
-    
-    let mut file2: Option<File> = None;
-    let mut pos2: u64 = 0;
+    let mut file: Option<File> = None;
+    let mut pos: u64 = 0;
 
     loop {
-        thread::sleep(Duration::from_millis(POLL_MS));
+        thread::sleep(Duration::from_millis(50));
         
-        let mut spike = false;
-        if tail_file(&mut file1, &log_path, &mut pos1) { spike = true; }
-        if tail_file(&mut file2, &presr_log_path, &mut pos2) { spike = true; }
-        
-        if spike {
-            last_spike_time = Instant::now();
-            let current = read_current_limit(&ini_path);
-            let mut new_limit = (current * (1.0 - STEP_DOWN)).floor();
-            if current - new_limit < 3.0 {
-                new_limit = current - 3.0; // At least drop 3 FPS immediately
+        if file.is_none() {
+            if let Ok(mut f) = File::open(&log_path) {
+                let _ = f.seek(SeekFrom::End(0));
+                pos = f.stream_position().unwrap_or(0);
+                file = Some(f);
             }
-            set_current_limit(&ini_path, new_limit);
+        }
+        
+        if let Some(f) = file.as_mut() {
+            let current_len = f.metadata().map(|m| m.len()).unwrap_or(pos);
+            if current_len < pos {
+                pos = 0;
+                let _ = f.seek(SeekFrom::Start(0));
+            }
             
-            // Sleep a bit extra after a spike to let the engine clear the queue
-            thread::sleep(Duration::from_millis(1500));
-        } else {
-            if last_spike_time.elapsed().as_millis() as u64 >= UP_DELAY_MS {
-                let current = read_current_limit(&ini_path);
-                if current < MAX_FPS {
-                    let mut new_limit = (current * (1.0 + STEP_UP)).ceil();
-                    if new_limit - current < 1.0 {
-                        new_limit = current + 1.0;
+            let _ = f.seek(SeekFrom::Start(pos));
+            let mut buffer = String::new();
+            if let Ok(bytes_read) = f.read_to_string(&mut buffer) {
+                if bytes_read > 0 {
+                    pos += bytes_read as u64;
+                    for line in buffer.lines() {
+                        // Proactive Guided Pacing: "network job X done in Y ms"
+                        if let Some(idx) = line.find("done in ") {
+                            let substr = &line[idx + 8..];
+                            if let Some(space_idx) = substr.find(" ms") {
+                                if let Ok(hip_ms) = substr[..space_idx].parse::<f64>() {
+                                    // Calculate maximum safe frames allowed based on HIP pure compute time!
+                                    // We add a safety margin (e.g. 15%) to ensure HIP is always slightly faster than the engine queue
+                                    let target_fps = (1000.0 / (hip_ms * SAFETY_MARGIN_MULTIPLIER)).floor();
+                                    
+                                    if (target_fps - current_limit).abs() >= 1.0 {
+                                        current_limit = target_fps;
+                                        set_current_limit(&ini_path, current_limit);
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Emergency mitigation for sudden scene drops
+                        if line.contains("timeout") || line.contains("SPIKE") || line.contains("host watchdog fired") {
+                            current_limit = (current_limit * 0.85).floor(); // 15% drop
+                            set_current_limit(&ini_path, current_limit);
+                            thread::sleep(Duration::from_millis(1500)); // Cool down
+                        }
                     }
-                    set_current_limit(&ini_path, new_limit);
                 }
-                // Reset timer so it takes steps up, not instantly to 120
-                last_spike_time = Instant::now() - Duration::from_millis(UP_DELAY_MS - 2000); 
             }
         }
     }
