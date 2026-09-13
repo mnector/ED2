@@ -8,7 +8,7 @@ use winapi::um::winnt::DLL_PROCESS_ATTACH;
 
 const MIN_FPS: f64 = 20.0;
 const MAX_FPS: f64 = 120.0;
-const SAFETY_MARGIN_MULTIPLIER: f64 = 1.20; // +20% absolute hardware headroom to prevent real GPU hangs
+const SAFETY_MARGIN_MULTIPLIER: f64 = 1.15;
 
 fn get_game_dir() -> Option<PathBuf> {
     if let Ok(path) = std::env::current_exe() {
@@ -23,9 +23,7 @@ fn read_current_limit(ini_path: &Path) -> f64 {
             if line.starts_with("FramerateLimit=") {
                 if let Some(val_str) = line.split('=').nth(1) {
                     if let Ok(val) = val_str.trim().parse::<f64>() {
-                        if val > 0.0 {
-                            return val;
-                        }
+                        if val > 0.0 { return val; }
                     }
                 }
             }
@@ -37,13 +35,11 @@ fn read_current_limit(ini_path: &Path) -> f64 {
 fn set_current_limit(ini_path: &Path, mut new_limit: f64) {
     if new_limit < MIN_FPS { new_limit = MIN_FPS; }
     if new_limit > MAX_FPS { new_limit = MAX_FPS; }
-    
     let new_limit = new_limit.floor();
 
     if let Ok(content) = std::fs::read_to_string(ini_path) {
         let mut new_content = String::with_capacity(content.len());
         let mut replaced = false;
-        
         for line in content.lines() {
             if line.starts_with("FramerateLimit=") {
                 new_content.push_str(&format!("FramerateLimit={}\r\n", new_limit));
@@ -53,21 +49,15 @@ fn set_current_limit(ini_path: &Path, mut new_limit: f64) {
                 new_content.push_str("\r\n");
             }
         }
-        
         if !replaced {
             new_content.push_str(&format!("\r\n[Framerate]\r\nFramerateLimit={}\r\n", new_limit));
         }
-        
         let _ = std::fs::write(ini_path, new_content);
     }
 }
 
 fn pacing_loop() {
-    let game_dir = match get_game_dir() {
-        Some(dir) => dir,
-        None => return,
-    };
-    
+    let game_dir = match get_game_dir() { Some(dir) => dir, None => return };
     let ini_path = game_dir.join("OptiScaler.ini");
     let log_path = game_dir.join("dlssnr_on_amd.log");
     
@@ -104,14 +94,11 @@ fn pacing_loop() {
                 if bytes_read > 0 {
                     pos += bytes_read as u64;
                     for line in buffer.lines() {
-                        // The AMD Card Dictates Pacing: "network job X done in Y ms"
                         if let Some(idx) = line.find("done in ") {
                             let substr = &line[idx + 8..];
                             if let Some(space_idx) = substr.find(" ms") {
                                 if let Ok(hip_ms) = substr[..space_idx].parse::<f64>() {
-                                    // Strictly lock the frame engine to the GPU's physical capability
                                     let target_fps = (1000.0 / (hip_ms * SAFETY_MARGIN_MULTIPLIER)).floor();
-                                    
                                     if (target_fps - current_limit).abs() >= 1.0 {
                                         current_limit = target_fps;
                                         set_current_limit(&ini_path, current_limit);
