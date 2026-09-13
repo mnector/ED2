@@ -44,13 +44,14 @@ fn get_optiscaler_module() -> Option<*const u8> {
 }
 
 fn immortal_watchdog_loop() {
-    log_msg("Envy Watchdog v14.2 started");
+    log_msg("Envy Watchdog v14.3 started (The Immortal Edition)");
     unsafe {
         if let Some(base) = get_optiscaler_module() {
             log_msg(&format!("OptiScaler dxgi.dll found at {:#x}", base as usize));
             
             let mut patched_a = false;
             let mut patched_b = false;
+            let mut patched_c = false;
             
             for i in 0..6_000_000 {
                 let ptr = base.add(i);
@@ -70,7 +71,6 @@ fn immortal_watchdog_loop() {
                    *ptr.add(3) == 0x0F && *ptr.add(4) == 0x84 && 
                    *ptr.add(5) == 0xD2 && *ptr.add(6) == 0x00 && *ptr.add(7) == 0x00 && *ptr.add(8) == 0x00 {
                     let patch_addr = ptr.add(3) as *mut u8;
-                    log_msg(&format!("Found Pattern B at offset {:#x}", i));
                     if *patch_addr == 0x0F {
                         patch_memory(patch_addr, &[0xE9, 0xD3, 0x00, 0x00, 0x00, 0x90]);
                         patched_b = true;
@@ -78,12 +78,28 @@ fn immortal_watchdog_loop() {
                     }
                 }
                 
-                if patched_a && patched_b {
+                // PATCH C: Force retry-in-1s branch to ALWAYS skip penalty
+                // Pattern: B1 01 48 8B 06 44 89 80 04 01 00 00 84 C9 0F 84 CF 00 00 00
+                if !patched_c && *ptr == 0xB1 && *ptr.add(1) == 0x01 && *ptr.add(2) == 0x48 && *ptr.add(3) == 0x8B &&
+                   *ptr.add(4) == 0x06 && *ptr.add(5) == 0x44 && *ptr.add(12) == 0x84 && *ptr.add(13) == 0xC9 && 
+                   *ptr.add(14) == 0x0F && *ptr.add(15) == 0x84 {
+                    let patch_addr = ptr.add(14) as *mut u8; // Points to 0F 84 CF 00 00 00
+                    if *patch_addr == 0x0F {
+                        // Change 'je near' to 'jmp near'
+                        // je near is 6 bytes (0F 84 CF 00 00 00). jmp near is 5 bytes (E9 D0 00 00 00 90)
+                        patch_memory(patch_addr, &[0xE9, 0xD0, 0x00, 0x00, 0x00, 0x90]);
+                        patched_c = true;
+                        log_msg(&format!("Patch C (Retry Jump) applied at offset {:#x}", i + 14));
+                    }
+                }
+                
+                if patched_a && patched_b && patched_c {
                     break;
                 }
             }
             if !patched_a { log_msg("Patch A NOT applied!"); }
             if !patched_b { log_msg("Patch B NOT applied!"); }
+            if !patched_c { log_msg("Patch C NOT applied!"); }
         } else {
             log_msg("OptiScaler dxgi.dll not found in process modules!");
         }
