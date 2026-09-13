@@ -1,0 +1,11 @@
+# Ignore large binaries and proprietary DLLs to comply with GitHub file size limits and ToS
+*.dll
+*.bin
+*.cso
+
+# Ignore OptiScaler specific extracted directories/binaries
+OptiScaler/
+experimental_lighting/
+
+# Ignore local zip files
+*.zip
