@@ -14,6 +14,13 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 
 ---
 
+## 🎥 See it in Action
+[![Envy-Diamond-2 Showcase](https://img.youtube.com/vi/9OoNgYDe6Uo/maxresdefault.jpg)](https://youtu.be/9OoNgYDe6Uo)
+
+*Watch Palworld running flawlessly with DLSS Neural Rendering on AMD hardware, completely eliminating the 1-second timeout stutters!*
+
+---
+
 ## ⚡ Features
 
 * 🚀 **AMD Neural Rendering Support:** Experience high-end upscaling paths natively adapted for AMD architecture via HIP.
@@ -61,5 +68,6 @@ The time budget is permanently frozen at its maximum value (600ms). When OBS spi
 
 > [!CAUTION]
 > This project modifies game binaries and proxy DLLs in memory. **Use at your own risk in single-player games only.** Do not use in multiplayer games with anti-cheat software, as it will likely result in an account ban.
+
 
 
