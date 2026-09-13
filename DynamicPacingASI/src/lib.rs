@@ -45,7 +45,7 @@ fn get_optiscaler_module() -> Option<*const u8> {
 }
 
 fn immortal_watchdog_loop() {
-    log_msg("Envy Watchdog v15.0 (Absolute Zero Stutter Edition) started");
+    log_msg("Envy Watchdog v1.0.0 (The True Digital Bottomless Pit) started");
     unsafe {
         // --- 1. PATCH OPTISCALER (dxgi.dll) ---
         if let Some(base) = get_optiscaler_module() {
@@ -99,12 +99,11 @@ fn immortal_watchdog_loop() {
         }
     }
     
-    // --- 2. PATCH DLSSNR_AMD BUDGET (Kill Dynamic Halving) ---
+    // --- 2. PATCH DLSSNR_AMD (Budget Freezer + Iteration Cap) ---
     let mut patched_pass1 = false;
     let mut patched_pass2 = false;
     let mut patched_pass3 = false;
     
-    // Loop until all passes are loaded and patched ONCE
     while !patched_pass1 || !patched_pass2 || !patched_pass3 {
         unsafe {
             let modules = [
@@ -119,22 +118,49 @@ fn immortal_watchdog_loop() {
                     if !handle.is_null() {
                         let base = handle as *const u8;
                         let mod_str = std::ffi::CStr::from_ptr(mod_name.as_ptr() as *const i8).to_string_lossy();
-                        log_msg(&format!("{} found, scanning for budget reducer...", mod_str));
+                        log_msg(&format!("{} found, scanning for patterns...", mod_str));
                         
-                        // Pattern: 8B 0D ?? ?? ?? ?? 39 C8 0F 4D C1 8B 0D ?? ?? ?? ?? 89 C2 87 15
+                        let mut found_budget = false;
+                        let mut found_init_cap = false;
+                        let mut found_recalc_cap = false;
+                        
                         for i in 0..4_000_000 {
                             let ptr = base.add(i);
-                            if *ptr == 0x8B && *ptr.add(1) == 0x0D &&
+                            
+                            // PATTERN 1: Budget Reducer
+                            if !found_budget && *ptr == 0x8B && *ptr.add(1) == 0x0D &&
                                *ptr.add(6) == 0x39 && *ptr.add(7) == 0xC8 &&
                                *ptr.add(8) == 0x0F && *ptr.add(9) == 0x4D && *ptr.add(10) == 0xC1 &&
                                *ptr.add(11) == 0x8B && *ptr.add(12) == 0x0D &&
                                *ptr.add(17) == 0x89 && *ptr.add(18) == 0xC2 &&
                                *ptr.add(19) == 0x87 && *ptr.add(20) == 0x15 {
-                                   
-                                // NOP the 'xchg edx, [rel ...]' which writes the lowered budget
                                 let patch_addr = ptr.add(19) as *mut u8;
                                 patch_memory(patch_addr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
                                 log_msg(&format!("Budget reducer NOP'd for {} at offset {:#x}", mod_str, i + 19));
+                                found_budget = true;
+                            }
+                            
+                            // PATTERN 2: Init Cap (C7 05 ?? ?? ?? ?? 60 E3 16 00 48 C7 05)
+                            if !found_init_cap && *ptr == 0xC7 && *ptr.add(1) == 0x05 &&
+                               *ptr.add(6) == 0x60 && *ptr.add(7) == 0xE3 && *ptr.add(8) == 0x16 && *ptr.add(9) == 0x00 &&
+                               *ptr.add(10) == 0x48 && *ptr.add(11) == 0xC7 && *ptr.add(12) == 0x05 {
+                                let patch_addr = ptr.add(6) as *mut u8;
+                                patch_memory(patch_addr, &[0x80, 0xF0, 0xFA, 0x02]); // 50,000,000
+                                log_msg(&format!("Init cap patched to 50M for {} at offset {:#x}", mod_str, i + 6));
+                                found_init_cap = true;
+                            }
+                            
+                            // PATTERN 3: Dynamic Cap Recalculation (F2 48 0F 2C C1 87 05)
+                            if !found_recalc_cap && *ptr == 0xF2 && *ptr.add(1) == 0x48 && *ptr.add(2) == 0x0F && *ptr.add(3) == 0x2C && *ptr.add(4) == 0xC1 &&
+                               *ptr.add(5) == 0x87 && *ptr.add(6) == 0x05 &&
+                               *ptr.add(11) == 0x8B && *ptr.add(12) == 0x85 && *ptr.add(13) == 0xF8 && *ptr.add(14) == 0x00 {
+                                let patch_addr = ptr.add(5) as *mut u8;
+                                patch_memory(patch_addr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
+                                log_msg(&format!("Cap recalculator NOP'd for {} at offset {:#x}", mod_str, i + 5));
+                                found_recalc_cap = true;
+                            }
+                            
+                            if found_budget && found_init_cap && found_recalc_cap {
                                 *is_patched = true;
                                 break;
                             }
@@ -145,7 +171,7 @@ fn immortal_watchdog_loop() {
         }
         thread::sleep(Duration::from_millis(1000));
     }
-    log_msg("All OptiScaler and AMD Proxy patches applied successfully!");
+    log_msg("All OptiScaler and AMD Proxy patches applied successfully! Welcome to v1.0.0.");
 }
 
 #[no_mangle]
