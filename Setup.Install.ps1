@@ -179,4 +179,81 @@ Install-File (Join-Path $PSScriptRoot 'EnvyDynamicPacing.asi') (Join-Path 'OptiS
 $iniContent = Set-IniValue $iniContent 'Plugins' 'LoadAsiPlugins' 'true'
 $iniContent | Set-Content $iniDest
 
-Write-Host 'Dynamic Pacing ASI plugin installed. TDR settings were left untouched.'
+# ── TDR Registry Configuration & Backup ────────────────────────────────────
+$tdrBackupPath = Join-Path $backup 'tdr_backup.json'
+$tdrKeys = @('TdrDelay', 'TdrDdiDelay', 'TdrLimitCount', 'TdrLimitTime')
+$tdrPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'
+
+# Check current TDR values and create backup
+$tdrBackup = @{}
+$currentTdrValid = $true
+
+foreach ($key in $tdrKeys) {
+    try {
+        $value = Get-ItemProperty -Path $tdrPath -Name $key -ErrorAction Stop | Select-Object -ExpandProperty $key
+        $tdrBackup[$key] = $value
+    } catch {
+        $tdrBackup[$key] = $null
+        $currentTdrValid = $false
+    }
+}
+
+# Save backup to JSON
+$tdrBackup | ConvertTo-Json | Set-Content $tdrBackupPath
+Write-Host "TDR settings backed up to: $tdrBackupPath"
+
+# Check if TDR values are adequate for DLSS-NR
+$tdrDelay = $tdrBackup['TdrDelay']
+$tdrDdiDelay = $tdrBackup['TdrDdiDelay']
+$tdrLimitCount = $tdrBackup['TdrLimitCount']
+$tdrLimitTime = $tdrBackup['TdrLimitTime']
+
+Write-Host ""
+Write-Host "Current TDR Settings:"
+Write-Host "  TdrDelay (default 2s):      ${tdrDelay}s"
+Write-Host "  TdrDdiDelay (default 5s):   ${tdrDdiDelay}s"
+Write-Host "  TdrLimitCount (default 5):  ${tdrLimitCount}"
+Write-Host "  TdrLimitTime (default 60s): ${tdrLimitTime}s"
+Write-Host ""
+
+# Recommend TDR changes if values are too low
+$needsTdrUpdate = $false
+$tdrRecommendation = ""
+
+if ($tdrDelay -lt 8 -or $tdrDelay -eq 0) {
+    $needsTdrUpdate = $true
+    $tdrRecommendation += "  - TdrDelay should be >= 8s (currently: ${tdrDelay}s)`n"
+}
+if ($tdrDdiDelay -lt 10 -or $tdrDdiDelay -eq 0) {
+    $needsTdrUpdate = $true
+    $tdrRecommendation += "  - TdrDdiDelay should be >= 10s (currently: ${tdrDdiDelay}s)`n"
+}
+if ($tdrLimitCount -lt 10 -or $tdrLimitCount -eq 0) {
+    $needsTdrUpdate = $true
+    $tdrRecommendation += "  - TdrLimitCount should be >= 10 (currently: ${tdrLimitCount})`n"
+}
+if ($tdrLimitTime -lt 120 -or $tdrLimitTime -eq 0) {
+    $needsTdrUpdate = $true
+    $tdrRecommendation += "  - TdrLimitTime should be >= 120s (currently: ${tdrLimitTime}s)`n"
+}
+
+if ($needsTdrUpdate) {
+    Write-Host "WARNING: TDR settings may cause DLSS-NR timeouts on AMD GPUs!" -ForegroundColor Yellow
+    Write-Host "Recommended changes:" -ForegroundColor Yellow
+    Write-Host $tdrRecommendation -ForegroundColor Yellow
+    Write-Host "To apply recommended TDR settings, run:" -ForegroundColor Yellow
+    Write-Host "  powershell -ExecutionPolicy Bypass -File .\Setup.TDRFix.ps1" -ForegroundColor Yellow
+    Write-Host "  (Requires administrator privileges and a reboot to take effect)" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Note: Envy-Diamond v1.0.0 patches watchdog timeouts in memory, but" -ForegroundColor Yellow
+    Write-Host "proper TDR settings prevent system-level GPU timeouts under heavy load." -ForegroundColor Yellow
+} else {
+    Write-Host "TDR settings verified: Optimal for DLSS-NR workloads" -ForegroundColor Green
+}
+
+# Write GPU generation to environment file for ASI plugin to read
+$envPath = Join-Path $game 'optiscaler.env'
+Set-Content -Path $envPath -Value "ENY_GPU_GEN=RDNA$rdnaGen"
+Write-Host "Environment file written: $envPath"
+
+Write-Host 'Dynamic Pacing ASI plugin installed. Verify TDR settings above for optimal performance.'

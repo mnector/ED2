@@ -1,5 +1,11 @@
 # Envy-Diamond v2 — AMD Pre-SR Neural Rendering
 
+## Overview
+Envy-Diamond-2 provides two complementary approaches to eliminating AMD DLSS-NR timeouts:
+
+1. **Memory Patching (v1.0.0)**: The `EnvyDynamicPacing.asi` plugin patches watchdog timers directly in DLL memory
+2. **System-Level Fix**: TDR registry configuration prevents GPU timeouts under heavy load
+
 ## What Changed in v2
 
 The external Dynamic Pacing Daemon (`EnvyDynamicPacing.ps1`, `Launch-Envy.bat`, `Launch-Envy-variable.bat`) has been **removed entirely**. It was a runtime workaround that masked the real issue by throttling FPS when AMD HIP timeouts were detected in logs.
@@ -47,3 +53,34 @@ HIP worker publication still follows the actual D3D12 ExecuteCommandLists call. 
 For Spider-Man on AMD, use `-forceReflexMarkers` in Steam launch options to enable the documented Streamline path while retaining `Dxgi=false` for ray-tracing compatibility.
 
 **Restart your PC after the first install for TDR changes to take full effect.**
+
+---
+
+## Post-Install Validation
+
+After installation, run the validation script:
+```powershell
+.\Setup.Validate.ps1 -GameDir "C:\Path\To\Game"
+```
+
+This checks:
+- Plugin files are installed correctly
+- TDR registry settings are optimal
+- OptiScaler.ini is configured properly
+- Backup files exist
+- Log files can be written
+
+## Customization
+
+### Log Location
+Set the `ENY_LOG_PATH` environment variable to specify a custom log location:
+```powershell
+$env:ENY_LOG_PATH = "C:\Logs\envy_asi.log"
+```
+
+### GPU Generation Override
+Set `ENY_GPU_GEN` to manually override GPU detection:
+```powershell
+$env:ENY_GPU_GEN = "RDNA4"
+```
+

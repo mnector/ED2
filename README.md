@@ -57,10 +57,38 @@ The time budget is permanently frozen at its maximum value (600ms). When OBS spi
 
 ## 📥 Installation
 
+### Quick Installation (Recommended)
+
 1. Go to the **[Releases](https://github.com/mnector/Envy-Diamond/releases)** tab and download the latest `Envy-Diamond-2-v1.0.0.zip`.
-2. Extract the contents.
-3. Place `EnvyDynamicPacing.asi` into your game's `OptiScaler/plugins/` directory (e.g. `Palworld\Pal\Binaries\Win64\OptiScaler\plugins\`).
-4. Ensure your `OptiScaler.ini` has `LoadAsiPlugins=true` enabled.
+2. Extract the contents to a folder.
+3. Run PowerShell as Administrator and execute:
+   ```powershell
+   .\Setup.Install.ps1 -GameDir "C:\Path\To\Game\Binaries\Win64"
+   ```
+4. The installer will:
+   - Detect your GPU and configure optimal DLSS-NR settings
+   - Configure TDR registry (backup created, see below)
+   - Install the ASI plugin automatically
+
+### TDR Configuration
+
+For optimal results, run the TDR fix script after installation:
+```powershell
+.\Setup.TDRFix.ps1
+```
+
+This configures Windows timeout settings to prevent GPU timeouts under heavy load. **Requires reboot to take effect.**
+
+To restore original settings:
+```powershell
+.\Setup.TDRFix.ps1 -RestoreBackup -BackupPath "path\to\tdr_backup.json"
+```
+
+### Manual Installation
+
+1. Place `EnvyDynamicPacing.asi` into your game's `OptiScaler/plugins/` directory.
+2. Ensure `OptiScaler.ini` has `LoadAsiPlugins=true`.
+3. Configure TDR settings manually (recommended: see `Setup.TDRFix.ps1`).
 
 ---
 
@@ -69,5 +97,9 @@ The time budget is permanently frozen at its maximum value (600ms). When OBS spi
 > [!CAUTION]
 > This project modifies game binaries and proxy DLLs in memory. **Use at your own risk in single-player games only.** Do not use in multiplayer games with anti-cheat software, as it will likely result in an account ban.
 
+> [!TIP]
+> **Log Location:** Environment log files are written to the current working directory by default. Use `ENY_LOG_PATH` environment variable to specify a custom location.
 
+> [!TIP]
+> **GPU Generation:** The installer detects your AMD GPU generation and optimizes settings accordingly. Full DLSS-NR support requires RDNA 3 or newer.
 

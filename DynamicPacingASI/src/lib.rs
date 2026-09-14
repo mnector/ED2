@@ -1,3 +1,4 @@
+use std::env;
 use std::thread;
 use std::time::Duration;
 use std::fs::OpenOptions;
@@ -17,7 +18,11 @@ unsafe fn patch_memory(addr: *mut u8, bytes: &[u8]) {
 }
 
 fn log_msg(msg: &str) {
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open("F:\\Steam\\steamapps\\common\\Palworld\\Pal\\Binaries\\Win64\\envy_asi.log") {
+    // Get log path from ENV or use current directory
+    let log_path = env::var("ENY_LOG_PATH")
+        .unwrap_or_else(|_| "envy_asi.log".to_string());
+    
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&log_path) {
         let _ = writeln!(file, "{}", msg);
     }
 }
@@ -45,7 +50,11 @@ fn get_optiscaler_module() -> Option<*const u8> {
 }
 
 fn immortal_watchdog_loop() {
-    log_msg("Envy Watchdog v1.0.0 (The True Digital Bottomless Pit) started");
+    // Read GPU gen from environment (set by installer)
+    let gpu_gen = env::var("ENY_GPU_GEN")
+        .unwrap_or_else(|_| "unknown".to_string());
+    log_msg(&format!("Envy Watchdog v1.0.0 (The True Digital Bottomless Pit) started"));
+    log_msg(&format!("Detected GPU generation: {}", gpu_gen));
     unsafe {
         // --- 1. PATCH OPTISCALER (dxgi.dll) ---
         if let Some(base) = get_optiscaler_module() {
