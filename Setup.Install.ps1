@@ -223,11 +223,11 @@ if ($isREEngine) {
 # ── No Man's Sky (Vulkan) tuning: enable Vulkan spoofing so DLSS is exposed on AMD ──
 if ($isNMS) {
     $iniContent = Set-IniValue $iniContent 'Spoofing' 'Vulkan'                  'true'
-    $iniContent = Set-IniValue $iniContent 'Spoofing' 'VulkanExtensionSpoofing' 'true'
+    $iniContent = Set-IniValue $iniContent 'Spoofing' 'VulkanExtensionSpoofing' 'false'
     $iniContent = Set-IniValue $iniContent 'Spoofing' 'SpoofedVendorId'         '0x10de'
     $iniContent = Set-IniValue $iniContent 'Spoofing' 'SpoofedDeviceId'         '0x2204'
     $iniContent = Set-IniValue $iniContent 'Spoofing' 'SpoofedGPUName'          'NVIDIA GeForce RTX 3090'
-    $iniContent = Set-IniValue $iniContent 'General'  'VulkanUpscaler'          'ffx'
+    $iniContent = Set-IniValue $iniContent 'Upscalers' 'VulkanUpscaler'         'ffx'
 }
 
 # ── Framerate: remove the daemon's static limit ──
@@ -246,7 +246,8 @@ Write-Host 'Reinicie o computador se for a primeira vez que executa o Envy-Diamo
 # ── Dynamic Pacing ASI Plugin ───────────────────────────────────────────────
 $pluginsDir = Join-Path $game 'OptiScaler\plugins'
 if (-not (Test-Path $pluginsDir)) { New-Item -ItemType Directory -Path $pluginsDir | Out-Null }
-Install-File (Join-Path $PSScriptRoot 'EnvyDynamicPacing.asi') (Join-Path 'OptiScaler\plugins' 'EnvyDynamicPacing.asi')
+# Install as -loadlate so it injects 30 seconds later, ensuring dlssnr_amd_pass DLLs are in memory to be patched!
+Install-File (Join-Path $PSScriptRoot 'EnvyDynamicPacing.asi') (Join-Path 'OptiScaler\plugins' 'EnvyDynamicPacing-loadlate.asi')
 
 # Ensure Plugins are enabled in INI
 $iniContent = Set-IniValue $iniContent 'Plugins' 'LoadAsiPlugins' 'true'
@@ -324,9 +325,8 @@ if ($needsTdrUpdate) {
     Write-Host "TDR settings verified: Optimal for DLSS-NR workloads" -ForegroundColor Green
 }
 
-# Write GPU generation to environment file for ASI plugin to read
-$envPath = Join-Path $game 'optiscaler.env'
-Set-Content -Path $envPath -Value "ENY_GPU_GEN=RDNA$rdnaGen"
-Write-Host "Environment file written: $envPath"
+# Set GPU generation as a user environment variable for ASI plugin to read via GetEnvironmentVariableW
+[Environment]::SetEnvironmentVariable("ENY_GPU_GEN", "RDNA$rdnaGen", "User")
+Write-Host "Environment variable ENY_GPU_GEN=RDNA$rdnaGen set for User."
 
 Write-Host 'Dynamic Pacing ASI plugin installed. Verify TDR settings above for optimal performance.'

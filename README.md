@@ -112,7 +112,7 @@ The time budget is permanently frozen at its maximum value (600ms). When OBS spi
 
 ### Quick Installation (Recommended)
 
-1. Go to the **[Releases](https://github.com/mnector/Envy-Diamond/releases)** tab and download the latest `Envy-Diamond-2-v1.0.2.zip`.
+1. Go to the **[Releases](https://github.com/mnector/Envy-Diamond/releases)** tab and download the latest `Envy-Diamond-2-v1.0.3.zip`.
 2. Extract the package contents to a folder on your PC (e.g., `C:\Tools\ED2`).
 3. **Configure Windows TDR (One-Click):**
    Double-click **`Fix_TDR_Admin.bat`**. 
@@ -127,6 +127,10 @@ The time budget is permanently frozen at its maximum value (600ms). When OBS spi
      * **RE Engine games** (e.g. *Resident Evil Requiem / BIOHAZARD requiem*):
        ```text
        E:\Steam\steamapps\common\RESIDENT EVIL requiem BIOHAZARD requiem
+       ```
+     * **DirectX 12 games** (e.g. *FINAL FANTASY XVI*):
+       ```text
+       E:\Steam\steamapps\common\FINAL FANTASY XVI DEMO
        ```
      * **Unreal Engine games** (e.g. *Palworld*):
        ```text
