@@ -24,6 +24,7 @@ if (!(Test-Path -LiteralPath $game -PathType Container)) {throw 'Informe a pasta
 $running=Get-Process -ErrorAction SilentlyContinue | Where-Object {try {$_.Path -and ([IO.Path]::GetDirectoryName($_.Path) -eq $game)} catch {$false}}
 if ($running) {throw 'Feche o jogo antes de instalar.'}
 $isREEngine = (Get-ChildItem -LiteralPath $game -Filter 're_chunk_*.pak' -ErrorAction SilentlyContinue).Count -gt 0 -or (Test-Path -LiteralPath (Join-Path $game 're9.exe'))
+$isNMS = (Test-Path -LiteralPath (Join-Path $game 'NMS.exe'))
 $proxies=@('dxgi.dll','winmm.dll','version.dll','winhttp.dll','wininet.dll','dbghelp.dll') | ForEach-Object {
     $candidate=Join-Path $game $_
     if(Test-Path -LiteralPath $candidate -PathType Leaf) {
@@ -34,7 +35,9 @@ $proxies=@('dxgi.dll','winmm.dll','version.dll','winhttp.dll','wininet.dll','dbg
 if(@($proxies).Count -gt 1){throw ('Mais de um proxy OptiScaler encontrado: '+($proxies -join ', ')+'. Mantenha apenas o proxy que deseja usar antes de atualizar.')}
 $proxyName=if($ProxyName -eq 'auto') {
     if(@($proxies).Count -eq 1){@($proxies)[0]}else{
-        if ($isREEngine) { 'version.dll' } else { 'dxgi.dll' }
+        if ($isREEngine) { 'version.dll' }
+        elseif ($isNMS) { 'dbghelp.dll' }
+        else { 'dxgi.dll' }
     }
 } else {$ProxyName.ToLowerInvariant()}
 if(@($proxies).Count -eq 1 -and $ProxyName -ne 'auto' -and @($proxies)[0] -ne $proxyName) {
@@ -215,6 +218,16 @@ if ($isREEngine) {
     $iniContent = Set-IniValue $iniContent 'Menu' 'OverlayMenu' 'true'
     $iniContent = Set-IniValue $iniContent 'Menu' 'ShortcutKey' '0x24'
     $iniContent = Set-IniValue $iniContent 'Menu' 'MenuKey'     '0x24'
+}
+
+# ── No Man's Sky (Vulkan) tuning: enable Vulkan spoofing so DLSS is exposed on AMD ──
+if ($isNMS) {
+    $iniContent = Set-IniValue $iniContent 'Spoofing' 'Vulkan'                  'true'
+    $iniContent = Set-IniValue $iniContent 'Spoofing' 'VulkanExtensionSpoofing' 'true'
+    $iniContent = Set-IniValue $iniContent 'Spoofing' 'SpoofedVendorId'         '0x10de'
+    $iniContent = Set-IniValue $iniContent 'Spoofing' 'SpoofedDeviceId'         '0x2204'
+    $iniContent = Set-IniValue $iniContent 'Spoofing' 'SpoofedGPUName'          'NVIDIA GeForce RTX 3090'
+    $iniContent = Set-IniValue $iniContent 'General'  'VulkanUpscaler'          'ffx'
 }
 
 # ── Framerate: remove the daemon's static limit ──
