@@ -7,8 +7,13 @@
 [![Release](https://img.shields.io/github/v/release/mnector/Envy-Diamond?style=for-the-badge&color=blue)](https://github.com/mnector/Envy-Diamond/releases)
 [![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey?style=for-the-badge)]()
 [![GPU](https://img.shields.io/badge/GPU-AMD%20Radeon-red?style=for-the-badge)]()
+[![Donate](https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal)](https://paypal.me/mnecstream)
 
 Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD hardware, injecting a custom proxy to translate calls and deliver massive framerate uplifts!
+
+*If this mod saved your framerate, consider buying me a coffee to support future development!*
+
+<a href="https://paypal.me/mnecstream" target="_blank"><img src="https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_111x69.jpg" alt="Donate with PayPal" width="100"/></a>
 
 </div>
 
@@ -236,4 +241,27 @@ This guarantees the proxy passes `ResizeBuffers` events seamlessly to the game e
 
 > [!TIP]
 > **GPU Generation:** The installer detects your AMD GPU generation and optimizes settings accordingly. Full DLSS-NR support requires RDNA 3 or newer.
+
+---
+
+<div align="center">
+
+### ❤️ Support the Project
+
+*If this mod saved your framerate and you love playing with DLSS 5 on AMD hardware, consider buying me a coffee or donating to support ongoing development!*
+
+<br>
+
+<a href="https://paypal.me/mnecstream" target="_blank"><img src="https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_111x69.jpg" alt="Donate with PayPal" width="120"/></a>
+
+<br><br>
+
+[![Donate with PayPal](https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white)](https://paypal.me/mnecstream)
+
+<br>
+
+*¡Muchas gracias por tu apoyo! Cada donación ayuda enormemente a seguir investigando, mejorando el código y testeando nuevos juegos.*
+
+</div>
+
 
