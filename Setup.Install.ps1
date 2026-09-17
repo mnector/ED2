@@ -23,6 +23,7 @@ $game=(Resolve-Path -LiteralPath $GameDir).Path
 if (!(Test-Path -LiteralPath $game -PathType Container)) {throw 'Informe a pasta do executavel do jogo.'}
 $running=Get-Process -ErrorAction SilentlyContinue | Where-Object {try {$_.Path -and ([IO.Path]::GetDirectoryName($_.Path) -eq $game)} catch {$false}}
 if ($running) {throw 'Feche o jogo antes de instalar.'}
+$isREEngine = (Get-ChildItem -LiteralPath $game -Filter 're_chunk_*.pak' -ErrorAction SilentlyContinue).Count -gt 0 -or (Test-Path -LiteralPath (Join-Path $game 're9.exe'))
 $proxies=@('dxgi.dll','winmm.dll','version.dll','winhttp.dll','wininet.dll','dbghelp.dll') | ForEach-Object {
     $candidate=Join-Path $game $_
     if(Test-Path -LiteralPath $candidate -PathType Leaf) {
@@ -32,7 +33,9 @@ $proxies=@('dxgi.dll','winmm.dll','version.dll','winhttp.dll','wininet.dll','dbg
 }
 if(@($proxies).Count -gt 1){throw ('Mais de um proxy OptiScaler encontrado: '+($proxies -join ', ')+'. Mantenha apenas o proxy que deseja usar antes de atualizar.')}
 $proxyName=if($ProxyName -eq 'auto') {
-    if(@($proxies).Count -eq 1){@($proxies)[0]}else{'dxgi.dll'}
+    if(@($proxies).Count -eq 1){@($proxies)[0]}else{
+        if ($isREEngine) { 'version.dll' } else { 'dxgi.dll' }
+    }
 } else {$ProxyName.ToLowerInvariant()}
 if(@($proxies).Count -eq 1 -and $ProxyName -ne 'auto' -and @($proxies)[0] -ne $proxyName) {
     throw ('OptiScaler is already installed as '+@($proxies)[0]+'. Move it before selecting '+$proxyName+'.')
@@ -62,7 +65,16 @@ if((Test-Path -LiteralPath $standalone) -and $proxyName -ne 'version.dll') {
     }
     Move-Item -LiteralPath $standalone -Destination (Join-Path $backup 'version.dll')
 }
+# Clean up any rogue nvngx.dll that is actually an OptiScaler copy (unsupported DLL name that breaks Streamline NGX context)
+$rogueNvngx = Join-Path $game 'nvngx.dll'
+if (Test-Path -LiteralPath $rogueNvngx) {
+    $item = Get-Item -LiteralPath $rogueNvngx
+    if ($item.VersionInfo.ProductName -eq 'OptiScaler' -or $item.VersionInfo.FileDescription -eq 'OptiScaler' -or (Get-FileHash -LiteralPath $rogueNvngx).Hash -eq (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'OptiScaler.dll')).Hash) {
+        Move-Item -LiteralPath $rogueNvngx -Destination (Join-Path $backup 'nvngx.dll') -Force
+    }
+}
 Install-File (Join-Path $PSScriptRoot 'OptiScaler.dll') $proxyName
+foreach($name in @('OptiScaler.ini','dlssnr_amd_pass1.dll','dlssnr_amd_pass2.dll','dlssnr_amd_pass3.dll','dlssnr_on_amd_weights.bin')) {
     Install-File (Join-Path $PSScriptRoot $name) $name
 }
 $deps=Join-Path $PSScriptRoot 'OptiScaler'
@@ -108,14 +120,21 @@ $iniContent = Get-Content $iniDest
 # Helper: set or update a key=value line under a given [Section].
 function Set-IniValue([string[]]$lines, [string]$section, [string]$key, [string]$value) {
     $inSection = $false
+    $sectionIndex = -1
     for ($i = 0; $i -lt $lines.Length; $i++) {
         if ($lines[$i] -match '^\[') {
             $inSection = ($lines[$i].Trim() -eq "[$section]")
+            if ($inSection) { $sectionIndex = $i }
         }
         if ($inSection -and $lines[$i] -match "^$key=") {
             $lines[$i] = "$key=$value"
             return $lines
         }
+    }
+    if ($sectionIndex -ge 0) {
+        $newLines = [Collections.Generic.List[string]]::new($lines)
+        $newLines.Insert($sectionIndex + 1, "$key=$value")
+        return $newLines.ToArray()
     }
     return $lines
 }
@@ -125,6 +144,8 @@ switch ($rdnaGen) {
     4 {
         # RDNA 4: Full neural rendering support
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'Enabled'                    'true'
+        $iniContent = Set-IniValue $iniContent 'DlssNr' 'RunBeforeSR'                'false'
+        $iniContent = Set-IniValue $iniContent 'DlssNr' 'ScanExposure'               'false'
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdModelScale'              '1'
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdNeuralLighting'          'true'
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdNeuralLightingStrength'  '0.5'
@@ -133,6 +154,8 @@ switch ($rdnaGen) {
     3 {
         # RDNA 3: Light NR, reduced neural lighting to avoid timeouts
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'Enabled'                    'true'
+        $iniContent = Set-IniValue $iniContent 'DlssNr' 'RunBeforeSR'                'false'
+        $iniContent = Set-IniValue $iniContent 'DlssNr' 'ScanExposure'               'false'
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdModelScale'              '1'
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdNeuralLighting'          'true'
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdNeuralLightingStrength'  '0.3'
@@ -141,6 +164,8 @@ switch ($rdnaGen) {
     default {
         # RDNA 2 or unknown: Disable NR entirely to prevent timeout storms
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'Enabled'                    'false'
+        $iniContent = Set-IniValue $iniContent 'DlssNr' 'RunBeforeSR'                'false'
+        $iniContent = Set-IniValue $iniContent 'DlssNr' 'ScanExposure'               'false'
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdModelScale'              '0'
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdNeuralLighting'          'false'
         $iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdNeuralLightingStrength'  '0'
@@ -153,9 +178,44 @@ $iniContent = Set-IniValue $iniContent 'FSRFG' 'FPTSafetyMarginInMs' '0.75'
 $iniContent = Set-IniValue $iniContent 'FSRFG' 'FPTVarianceFactor'   '0.3'
 $iniContent = Set-IniValue $iniContent 'FSRFG' 'FPTHybridSpin'       'true'
 
-# ── Resource Barriers: always-on for UE5 AMD ──
-$iniContent = Set-IniValue $iniContent 'Hotfix' 'ColorResourceBarrier'        '4'
-$iniContent = Set-IniValue $iniContent 'Hotfix' 'MotionVectorResourceBarrier' '8'
+# ── Swapchain Stability: Prevent crashes on resolution/menu changes ──
+$iniContent = Set-IniValue $iniContent 'FrameGen' 'SkipResizeBuffers' 'false'
+$iniContent = Set-IniValue $iniContent 'FrameGen' 'PreserveSwapChain' 'false'
+$iniContent = Set-IniValue $iniContent 'FrameGen' 'ModifyBufferState' 'true'
+$iniContent = Set-IniValue $iniContent 'FrameGen' 'ModifySCIndex'     'true'
+
+# ── Resource Barriers: only for UE5 AMD (breaks RE Engine / other D3D12 engines) ──
+$isUE = ($game -match 'Binaries[\\/]Win64') -or (Test-Path -LiteralPath (Join-Path $game '..\..\Engine') -PathType Container)
+if ($isUE) {
+    $iniContent = Set-IniValue $iniContent 'Hotfix' 'ColorResourceBarrier'        '4'
+    $iniContent = Set-IniValue $iniContent 'Hotfix' 'MotionVectorResourceBarrier' '8'
+}
+
+# ── RE Engine tuning: enable DLSS pipeline, isolate FG, disable signature traps & overlays ──
+if ($isREEngine) {
+    # Isolate FrameGen so OptiScaler does not hook swapchain with uninitialized FG
+    $iniContent = Set-IniValue $iniContent 'FrameGen' 'External' 'true'
+    $iniContent = Set-IniValue $iniContent 'FrameGen' 'Enabled'  'false'
+    # Spoof RTX 3090: unlocks DLSS SR and DLSS Ray Reconstruction in game menu without triggering Streamline DLSS-G (Ada exclusive) crashes
+    $iniContent = Set-IniValue $iniContent 'Spoofing' 'SpoofedVendorId' '0x10de'
+    $iniContent = Set-IniValue $iniContent 'Spoofing' 'SpoofedDeviceId' '0x2204'
+    $iniContent = Set-IniValue $iniContent 'Spoofing' 'SpoofedGPUName'   'NVIDIA GeForce RTX 3090'
+    # Disable exposure scanner (RE Engine's 64+ buffer allocations cause scan table overflow/crashes)
+    $iniContent = Set-IniValue $iniContent 'DlssNr' 'ScanExposure' 'false'
+    # Use post-SR AmdLook conversion; disable heavy neural compute pass to prevent driver timeouts on RDNA4
+    $iniContent = Set-IniValue $iniContent 'DlssNr' 'Enabled'           'false'
+    $iniContent = Set-IniValue $iniContent 'DlssNr' 'RunBeforeSR'       'false'
+    $iniContent = Set-IniValue $iniContent 'AmdLook' 'Enabled'          'true'
+    # Monolithic REFramework handles root signatures; forcing OptiScaler to restore them causes 0x887a0006 device hung crashes on Present
+    $iniContent = Set-IniValue $iniContent 'Hotfix' 'RestoreComputeSignature' 'false'
+    $iniContent = Set-IniValue $iniContent 'Hotfix' 'RestoreGraphicSignature' 'false'
+    # Disable Steam/Epic Overlays: Overlay hooks severely conflict with RE Engine's DXGI integration and FrameGen wrappers
+    $iniContent = Set-IniValue $iniContent 'Hotfix' 'DisableOverlays' 'true'
+    # Overlay menu on VK_HOME (0x24) to avoid collision with REFramework's Insert key
+    $iniContent = Set-IniValue $iniContent 'Menu' 'OverlayMenu' 'true'
+    $iniContent = Set-IniValue $iniContent 'Menu' 'ShortcutKey' '0x24'
+    $iniContent = Set-IniValue $iniContent 'Menu' 'MenuKey'     '0x24'
+}
 
 # ── Framerate: remove the daemon's static limit ──
 $iniContent = Set-IniValue $iniContent 'Framerate' 'FramerateLimit' '0.0'
@@ -220,13 +280,13 @@ Write-Host ""
 $needsTdrUpdate = $false
 $tdrRecommendation = ""
 
-if ($tdrDelay -lt 8 -or $tdrDelay -eq 0) {
+if ($tdrDelay -lt 60 -or $tdrDelay -eq 0) {
     $needsTdrUpdate = $true
-    $tdrRecommendation += "  - TdrDelay should be >= 8s (currently: ${tdrDelay}s)`n"
+    $tdrRecommendation += "  - TdrDelay should be >= 60s (currently: ${tdrDelay}s)`n"
 }
-if ($tdrDdiDelay -lt 10 -or $tdrDdiDelay -eq 0) {
+if ($tdrDdiDelay -lt 60 -or $tdrDdiDelay -eq 0) {
     $needsTdrUpdate = $true
-    $tdrRecommendation += "  - TdrDdiDelay should be >= 10s (currently: ${tdrDdiDelay}s)`n"
+    $tdrRecommendation += "  - TdrDdiDelay should be >= 60s (currently: ${tdrDdiDelay}s)`n"
 }
 if ($tdrLimitCount -lt 10 -or $tdrLimitCount -eq 0) {
     $needsTdrUpdate = $true

@@ -9,3 +9,7 @@ experimental_lighting/
 
 # Ignore local zip files
 *.zip
+
+# Ignore MiMoCode development files
+.mimocode/
+UTF8

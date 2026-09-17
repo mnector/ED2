@@ -1,13 +1,10 @@
 <#
 .SYNOPSIS
-    Fixes Windows TDR (Timeout Detection and Recovery) registry settings for AMD DLSS-NR
+    Fixes Windows TDR settings for AMD DLSS-NR
 
 .DESCRIPTION
-    This script configures Windows TDR registry values to prevent AMD HIP compute kernel
-    timeouts during heavy neural rendering passes. Recommended for Envy-Diamond-2 users
-    experiencing GPU-related timeouts under heavy loads.
-
-    Requires administrator privileges and a reboot to take effect.
+    Configures TDR registry values to prevent AMD GPU timeouts during neural rendering.
+    Requires administrator privileges and a reboot.
 #>
 
 [CmdletBinding()]
@@ -16,22 +13,21 @@ param(
     [string]$BackupPath
 )
 
-$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = "Stop"
 
-# Check for administrator privileges
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
     Write-Host "ERROR: This script must be run as Administrator" -ForegroundColor Red
-    Write-Host "Please right-click and select 'Run as Administrator'" -ForegroundColor Red
+    Write-Host "Please right-click and select Run as Administrator" -ForegroundColor Red
     exit 1
 }
 
-$tdrPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers'
+$tdrPath = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
 $tdrKeys = @{
-    'TdrDelay' = 8          # Timeout in seconds (was 2s default)
-    'TdrDdiDelay' = 10      # DDI callback margin (was 5s default)
-    'TdrLimitCount' = 10    # Tolerance before crash (was 5 default)
-    'TdrLimitTime' = 120    # Observation window in seconds (was 60s default)
+    "TdrDelay" = 60
+    "TdrDdiDelay" = 60
+    "TdrLimitCount" = 10
+    "TdrLimitTime" = 120
 }
 
 if ($RestoreBackup) {
@@ -54,10 +50,10 @@ if ($RestoreBackup) {
             }
         }
         Write-Host ""
-        Write-Host "TDR settings restored. Please reboot for changes to take effect." -ForegroundColor Green
+        Write-Host "TDR settings restored. Please reboot." -ForegroundColor Green
         exit 0
     } catch {
-        Write-Host "ERROR: Failed to restore backup: $_" -ForegroundColor Red
+        Write-Host "ERROR: Failed to restore backup" -ForegroundColor Red
         exit 1
     }
 }
@@ -66,43 +62,25 @@ Write-Host "Configuring TDR settings for AMD DLSS-NR workloads..."
 Write-Host "====================================================="
 Write-Host ""
 
-# Get current values
-$currentValues = @{}
-foreach ($key in $tdrKeys.Keys) {
-    try {
-        $currentValues[$key] = (Get-ItemProperty -Path $tdrPath -Name $key -ErrorAction Stop).$key
-    } catch {
-        $currentValues[$key] = $null
-    }
-}
-
-# Apply new values
 Write-Host "Setting recommended TDR values:" -ForegroundColor Cyan
 foreach ($key in $tdrKeys.Keys) {
-    $oldValue = $currentValues[$key]
     $newValue = $tdrKeys[$key]
-    
-    if ($oldValue -eq $newValue) {
-        Write-Host "  $key = $newValue (already set)" -ForegroundColor Green
-    } else {
-        try {
-            Set-ItemProperty -Path $tdrPath -Name $key -Value $newValue -Force | Out-Null
-            Write-Host "  $key = $oldValue -> $newValue" -ForegroundColor Yellow
-        } catch {
-            Write-Host "  ERROR setting $key: $_" -ForegroundColor Red
-        }
+    try {
+        Set-ItemProperty -Path $tdrPath -Name $key -Value $newValue -Force | Out-Null
+        Write-Host "  $key = $newValue" -ForegroundColor Yellow
+    } catch {
+        Write-Host "  ERROR setting $key" -ForegroundColor Red
     }
 }
 
 Write-Host ""
-Write-Host "IMPORTANT: You must reboot your system for these changes to take effect." -ForegroundColor Yellow
+Write-Host "IMPORTANT: Reboot required for changes to take effect." -ForegroundColor Yellow
 Write-Host ""
-Write-Host "To undo these changes, run:" -ForegroundColor Cyan
+Write-Host "To undo these changes:" -ForegroundColor Cyan
 Write-Host "  .\Setup.TDRFix.ps1 -RestoreBackup -BackupPath <path-to-backup>" -ForegroundColor Cyan
 Write-Host ""
 
-# Verify changes
-Write-Host "Verifying registry changes..."
+Write-Host "Verifying..."
 $verified = $true
 foreach ($key in $tdrKeys.Keys) {
     try {
@@ -112,7 +90,7 @@ foreach ($key in $tdrKeys.Keys) {
             $verified = $false
         }
     } catch {
-        Write-Host "  ERROR: Could not verify $key: $_" -ForegroundColor Red
+        Write-Host "  ERROR: Could not verify $key" -ForegroundColor Red
         $verified = $false
     }
 }

@@ -27,7 +27,11 @@ fn log_msg(msg: &str) {
     }
 }
 
-fn get_optiscaler_module() -> Option<*const u8> {
+fn is_system_path(name: &str) -> bool {
+    name.contains("\\windows\\") || name.contains("\\system32\\") || name.contains("\\syswow64\\")
+}
+
+fn get_optiscaler_module() -> Option<(*const u8, String)> {
     unsafe {
         let process = GetCurrentProcess();
         let mut modules = [std::ptr::null_mut(); 1024];
@@ -39,8 +43,12 @@ fn get_optiscaler_module() -> Option<*const u8> {
                 let mut name_buf = [0i8; 260];
                 if GetModuleFileNameExA(process, modules[i], name_buf.as_mut_ptr(), name_buf.len() as u32) > 0 {
                     let name = std::ffi::CStr::from_ptr(name_buf.as_ptr()).to_string_lossy().to_lowercase();
-                    if name.contains("dxgi.dll") && !name.contains("system32") {
-                        return Some(modules[i] as *const u8);
+                    if !is_system_path(&name) {
+                        if name.ends_with("version.dll") || name.ends_with("dxgi.dll") || 
+                           name.ends_with("optiscaler.dll") || name.ends_with("winmm.dll") || 
+                           name.ends_with("wininet.dll") || name.ends_with("d3d12.dll") {
+                            return Some((modules[i] as *const u8, name));
+                        }
                     }
                 }
             }
@@ -55,15 +63,25 @@ fn immortal_watchdog_loop() {
         .unwrap_or_else(|_| "unknown".to_string());
     log_msg(&format!("Envy Watchdog v1.0.0 (The True Digital Bottomless Pit) started"));
     log_msg(&format!("Detected GPU generation: {}", gpu_gen));
-    unsafe {
-        // --- 1. PATCH OPTISCALER (dxgi.dll) ---
-        if let Some(base) = get_optiscaler_module() {
-            log_msg(&format!("OptiScaler dxgi.dll found at {:#x}", base as usize));
-            
-            let mut patched_a = false;
-            let mut patched_b = false;
-            let mut patched_c = false;
-            
+    
+    // --- 1. PATCH OPTISCALER (dxgi.dll, version.dll, etc.) ---
+    let mut optiscaler_base: Option<(*const u8, String)> = None;
+    for _ in 0..50 {
+        if let Some((base, name)) = get_optiscaler_module() {
+            optiscaler_base = Some((base, name));
+            break;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    
+    if let Some((base, mod_name)) = optiscaler_base {
+        log_msg(&format!("OptiScaler proxy module ({}) found at {:#x}", mod_name, base as usize));
+        
+        let mut patched_a = false;
+        let mut patched_b = false;
+        let mut patched_c = false;
+        
+        unsafe {
             for i in 0..6_000_000 {
                 let ptr = base.add(i);
                 
@@ -106,6 +124,8 @@ fn immortal_watchdog_loop() {
                 }
             }
         }
+    } else {
+        log_msg("Warning: OptiScaler proxy module not located in process space.");
     }
     
     // --- 2. PATCH DLSSNR_AMD (Budget Freezer + Iteration Cap) ---
@@ -113,7 +133,7 @@ fn immortal_watchdog_loop() {
     let mut patched_pass2 = false;
     let mut patched_pass3 = false;
     
-    while !patched_pass1 || !patched_pass2 || !patched_pass3 {
+    for _ in 0..15 {
         unsafe {
             let modules = [
                 (b"dlssnr_amd_pass1.dll\0", &mut patched_pass1),
@@ -180,7 +200,7 @@ fn immortal_watchdog_loop() {
         }
         thread::sleep(Duration::from_millis(1000));
     }
-    log_msg("All OptiScaler and AMD Proxy patches applied successfully! Welcome to v1.0.0.");
+    log_msg("All OptiScaler and active AMD Proxy patches applied successfully! Welcome to v1.0.0.");
 }
 
 #[no_mangle]
