@@ -97,44 +97,40 @@ The time budget is permanently frozen at its maximum value (600ms). When OBS spi
    * It configures safe 60-second timeout limits (`TdrDelay` = 60s, `TdrDdiDelay` = 60s) to prevent Windows from terminating the GPU driver during initial neural shader compilation and heavy rendering spikes.
    * **Restart your PC** after running it to ensure Windows applies the registry changes.
 
-4. Open PowerShell as Administrator inside the extracted folder and run:
-   ```powershell
-   .\Setup.Install.ps1 -GameDir "<Path_To_Executable_Folder>"
-   ```
+4. **Install into your Game (Simple 1-Click .bat):**
+   Double-click **`Install_Game_Admin.bat`** (or drag and drop your game folder directly onto it!):
+   * It will ask for administrator permissions via UAC.
+   * Type, paste, or drag your game's executable folder into the window and press Enter:
+     * **RE Engine games** (e.g. *Resident Evil Requiem / BIOHAZARD requiem*):
+       ```text
+       E:\Steam\steamapps\common\RESIDENT EVIL requiem BIOHAZARD requiem
+       ```
+     * **Unreal Engine games** (e.g. *Palworld*):
+       ```text
+       C:\Steam\steamapps\common\Palworld\Pal\Binaries\Win64
+       ```
+   * The installer will automatically tune `OptiScaler.ini`, deploy the appropriate proxy (`version.dll` for RE Engine, `dxgi.dll` for UE5), and install `EnvyDynamicPacing.asi`!
 
-   > [!IMPORTANT]
-   > Always pass the directory where the game executable (`.exe`) lives. The path structure varies depending on the game engine:
-
-   * **RE Engine games** (e.g. *Resident Evil Requiem / BIOHAZARD requiem*, RE4 Remake, RE Village):
-     The executable (`re9.exe`, `re4.exe`, etc.) lives directly in the **root game directory**:
+5. **Advanced / Alternative Installation Options:**
+   * **PowerShell CLI:**
      ```powershell
-     .\Setup.Install.ps1 -GameDir "E:\Steam\steamapps\common\RESIDENT EVIL requiem BIOHAZARD requiem"
+     .\Setup.Install.ps1 -GameDir "<Path_To_Executable_Folder>"
      ```
-     *(The installer automatically detects RE Engine, installs as `version.dll`, sets the menu key to `Home`, blocks overlay collisions, and tunes DX12 swapchain parameters!)*
+   * **GUI Window:** Double-click `Setup.bat` (or execute `.\Setup.GUI.ps1`), click **Browse...**, select the game executable directly (e.g. `re9.exe`), and click **Install**.
 
-   * **Unreal Engine games** (e.g. *Palworld*):
-     The executable lives in the nested `Binaries\Win64` subdirectory:
-     ```powershell
-     .\Setup.Install.ps1 -GameDir "C:\Steam\steamapps\common\Palworld\Pal\Binaries\Win64"
-     ```
-
-   * **GUI Alternative:** You can also run the graphical installer by double-clicking `Setup.bat` (or executing `.\Setup.GUI.ps1`), clicking **Browse...**, picking the game executable directly (e.g. `re9.exe`), and clicking **Install**.
-
-5. Verify your installation at any time:
+6. Verify your installation at any time:
    ```powershell
    .\Setup.Validate.ps1 -GameDir "E:\Steam\steamapps\common\RESIDENT EVIL requiem BIOHAZARD requiem"
    ```
 
-### ⚡ Easy 1-Click TDR Configuration (`Fix_TDR_Admin.bat`)
+### ⚡ Easy 1-Click Tools Reference
 
-Windows defaults to a strict 2-second timeout (`TdrDelay`). On modern AMD hardware (RDNA 3/4), initial compute shader compilation for neural rendering passes takes longer than 2 seconds, which leads to `0x887a0006 (DXGI_ERROR_DEVICE_HUNG)` crashes.
-
-Simply double-click **`Fix_TDR_Admin.bat`** in the ED2 folder. It will safely update your registry to 60-second limits and verify the configuration. Reboot your computer once completed.
-
-To manually restore defaults, run:
-```powershell
-.\Setup.TDRFix.ps1 -RestoreBackup -BackupPath "<path_to_tdr_backup.json>"
-```
+| Script | Purpose |
+| :--- | :--- |
+| **`Fix_TDR_Admin.bat`** | Double-click to auto-elevate and configure safe 60s Windows TDR timeout limits for AMD GPUs. |
+| **`Install_Game_Admin.bat`** | Double-click to auto-elevate and install ED2 by simply entering/dragging your game folder path. |
+| **`Setup.bat`** | Graphical user interface (GUI) installer for picking `.exe` files via Windows Explorer. |
+| **`Setup.Validate.ps1`** | Validates files, proxies, ASI plugins, and registry settings for complete peace of mind. |
 
 ---
 
