@@ -15,9 +15,27 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 ---
 
 ## 🎥 See it in Action
-[![Envy-Diamond-2 Showcase](https://img.youtube.com/vi/9OoNgYDe6Uo/maxresdefault.jpg)](https://youtu.be/9OoNgYDe6Uo)
 
-*Watch Palworld running flawlessly with DLSS Neural Rendering on AMD hardware, completely eliminating the 1-second timeout stutters!*
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <b>🧟 Resident Evil Requiem (BIOHAZARD requiem)</b><br>
+      <i>DLSS 5 Neural Tunneling, Multi-Pass Inference & RE Engine Stability</i><br><br>
+      <a href="https://www.youtube.com/watch?v=Bzbo73zTuVA">
+        <img src="https://img.youtube.com/vi/Bzbo73zTuVA/maxresdefault.jpg" alt="Resident Evil Requiem Showcase" width="100%"/>
+      </a><br>
+      <a href="https://www.youtube.com/watch?v=Bzbo73zTuVA">▶ Watch on YouTube</a>
+    </td>
+    <td align="center" width="50%">
+      <b>🐾 Palworld</b><br>
+      <i>Zero Stutters with The Digital Bottomless Pit Watchdog</i><br><br>
+      <a href="https://www.youtube.com/watch?v=C_uBqVn-abI">
+        <img src="https://img.youtube.com/vi/C_uBqVn-abI/maxresdefault.jpg" alt="Palworld Showcase" width="100%"/>
+      </a><br>
+      <a href="https://www.youtube.com/watch?v=C_uBqVn-abI">▶ Watch on YouTube</a>
+    </td>
+  </tr>
+</table>
 
 ---
 
