@@ -13,3 +13,6 @@ experimental_lighting/
 # Ignore MiMoCode development files
 .mimocode/
 UTF8
+target/
+*.pdb
+*.exp
