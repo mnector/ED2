@@ -56,44 +56,147 @@ fn get_optiscaler_module() -> Option<(*const u8, String)> {
     None
 }
 
+/// ===============================================================
+/// v3.0 STRATEGY: "Kill the messenger, not the message"
+/// 
+/// Previous attempts NOPd the CONDITIONAL JUMPS leading to the
+/// error routine at RVA 0xF23B. But we missed a third path
+/// (unconditional JMP at 0xF138), and the cap/budget variables
+/// kept getting reset by code we didn't patch.
+///
+/// NEW APPROACH: Instead of chasing every possible jump INTO the
+/// error routine, we NOP the TWO DAMAGE INSTRUCTIONS inside the
+/// error routine ITSELF. This makes it HARMLESS regardless of how
+/// many code paths reach it.
+///
+/// The two kill-switch instructions:
+///   0xF28A: 44 87 25 CD 7A 06 00  XCHG [timeout_count], R12D
+///   0xF293: B8 FF FF FF FF        MOV EAX, 0xFFFFFFFF  
+///   0xF298: 87 05 B6 7A 06 00     XCHG [keep_input_flag], EAX
+///
+/// These write the "current input kept" signal that tells the
+/// renderer to DISCARD the neural frame and show raw pixels.
+/// By NOPing them, the error routine still runs, still logs,
+/// but NEVER discards a frame.
+///
+/// Additionally we patch:
+///   0xF121: Budget halving XCHG (in the timeout handler)
+///   0x3BC1: Budget XCHG (in another code path)
+///   0xF0BF: Cap recalculator XCHG  
+///   0xF1B7: Budget reducer XCHG
+///   0xF138: Unconditional JMP to error routine (make it skip)
+///   0x10568: Init cap value (change from 1.5M to 2B)
+/// ===============================================================
 unsafe fn patch_pass_module(base: *const u8, name: &str) {
-    // 1. Host Watchdog Jump at RVA 0xF0DF: 0F 8D 56 01 00 00 -> 6 NOPs
-    let hw1_ptr = (base as usize + 0xF0DF) as *mut u8;
-    if *hw1_ptr == 0x0F && *hw1_ptr.add(1) == 0x8D {
-        patch_memory(hw1_ptr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
-        log_msg(&format!("Host watchdog JGE jump NOP'd for {} at RVA 0xF0DF", name));
-    }
+    let mut count = 0u32;
 
-    // 2. Iteration Timeout Jump at RVA 0xF0F7: 0F 8C 3E 01 00 00 -> 6 NOPs
-    let hw2_ptr = (base as usize + 0xF0F7) as *mut u8;
-    if *hw2_ptr == 0x0F && *hw2_ptr.add(1) == 0x8C {
-        patch_memory(hw2_ptr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
-        log_msg(&format!("Iteration timeout JL jump NOP'd for {} at RVA 0xF0F7", name));
-    }
+    // ===== THE CORE FIX: NOP the damage instructions in error routine =====
 
-    // 3. Cap Recalculator at RVA 0xF0BF: 87 05 7F 7B 06 00 -> 6 NOPs
-    let cap_recalc_ptr = (base as usize + 0xF0BF) as *mut u8;
-    if *cap_recalc_ptr == 0x87 && *cap_recalc_ptr.add(1) == 0x05 {
-        patch_memory(cap_recalc_ptr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
-        log_msg(&format!("Cap recalculator NOP'd for {} at RVA 0xF0BF", name));
-    }
+    // 1. Error routine kill-switch #1: XCHG [timeout_count], R12D
+    // RVA 0xF28A: 44 87 25 CD 7A 06 00 (7 bytes) -> 7 NOPs
+    let ks1 = (base as usize + 0xF28A) as *mut u8;
+    if *ks1 == 0x44 && *ks1.add(1) == 0x87 && *ks1.add(2) == 0x25 {
+        patch_memory(ks1, &[0x90; 7]);
+        log_msg(&format!("[{}] Kill-switch #1 NOP'd: XCHG timeout_count at RVA 0xF28A", name));
+        count += 1;
+    } else if *ks1 == 0x90 { count += 1; }
 
-    // 4. Budget Reducer at RVA 0xF1B7: 87 15 97 7A 06 00 -> 6 NOPs
-    let budget_ptr = (base as usize + 0xF1B7) as *mut u8;
-    if *budget_ptr == 0x87 && *budget_ptr.add(1) == 0x15 {
-        patch_memory(budget_ptr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
-        log_msg(&format!("Budget reducer NOP'd for {} at RVA 0xF1B7", name));
-    }
+    // 2. Error routine kill-switch #2: MOV EAX,-1 + XCHG [keep_input], EAX
+    // RVA 0xF293: B8 FF FF FF FF (5 bytes) -> 5 NOPs
+    // RVA 0xF298: 87 05 B6 7A 06 00 (6 bytes) -> 6 NOPs
+    // Total: 11 bytes of NOPs
+    let ks2 = (base as usize + 0xF293) as *mut u8;
+    if *ks2 == 0xB8 && *ks2.add(1) == 0xFF && *ks2.add(2) == 0xFF {
+        patch_memory(ks2, &[0x90; 11]);
+        log_msg(&format!("[{}] Kill-switch #2 NOP'd: MOV+XCHG keep_input at RVA 0xF293-0xF29D", name));
+        count += 1;
+    } else if *ks2 == 0x90 { count += 1; }
 
-    // 5. Direct Live RAM Clamping
+    // ===== AUXILIARY PATCHES: prevent cap/budget degradation =====
+
+    // 3. Cap recalculator XCHG at RVA 0xF0BF: 87 05 xx xx xx xx -> 6 NOPs
+    let cap_recalc = (base as usize + 0xF0BF) as *mut u8;
+    if *cap_recalc == 0x87 && *cap_recalc.add(1) == 0x05 {
+        patch_memory(cap_recalc, &[0x90; 6]);
+        log_msg(&format!("[{}] Cap recalculator NOP'd at RVA 0xF0BF", name));
+        count += 1;
+    } else if *cap_recalc == 0x90 { count += 1; }
+
+    // 4. Budget reducer XCHG at RVA 0xF1B7: 87 15 xx xx xx xx -> 6 NOPs
+    let budget_reducer = (base as usize + 0xF1B7) as *mut u8;
+    if *budget_reducer == 0x87 && *budget_reducer.add(1) == 0x15 {
+        patch_memory(budget_reducer, &[0x90; 6]);
+        log_msg(&format!("[{}] Budget reducer NOP'd at RVA 0xF1B7", name));
+        count += 1;
+    } else if *budget_reducer == 0x90 { count += 1; }
+
+    // 5. Budget halver XCHG at RVA 0xF121: 87 05 xx xx xx xx -> 6 NOPs
+    let budget_halver = (base as usize + 0xF121) as *mut u8;
+    if *budget_halver == 0x87 && *budget_halver.add(1) == 0x05 {
+        patch_memory(budget_halver, &[0x90; 6]);
+        log_msg(&format!("[{}] Budget halver NOP'd at RVA 0xF121", name));
+        count += 1;
+    } else if *budget_halver == 0x90 { count += 1; }
+
+    // 6. Budget XCHG at RVA 0x3BC1: 87 05 xx xx xx xx -> 6 NOPs
+    let budget_other = (base as usize + 0x3BC1) as *mut u8;
+    if *budget_other == 0x87 && *budget_other.add(1) == 0x05 {
+        patch_memory(budget_other, &[0x90; 6]);
+        log_msg(&format!("[{}] Budget init XCHG NOP'd at RVA 0x3BC1", name));
+        count += 1;
+    } else if *budget_other == 0x90 { count += 1; }
+
+    // 7. Unconditional JMP at RVA 0xF138: E9 FE 00 00 00 -> 5 NOPs
+    //    This was the MISSED third path into the error routine!
+    let jmp_err = (base as usize + 0xF138) as *mut u8;
+    if *jmp_err == 0xE9 {
+        patch_memory(jmp_err, &[0x90; 5]);
+        log_msg(&format!("[{}] Unconditional JMP to error routine NOP'd at RVA 0xF138", name));
+        count += 1;
+    } else if *jmp_err == 0x90 { count += 1; }
+
+    // 8. Host watchdog JGE at RVA 0xF0DF: 0F 8D -> 6 NOPs
+    let hw_jge = (base as usize + 0xF0DF) as *mut u8;
+    if *hw_jge == 0x0F && *hw_jge.add(1) == 0x8D {
+        patch_memory(hw_jge, &[0x90; 6]);
+        log_msg(&format!("[{}] Host watchdog JGE NOP'd at RVA 0xF0DF", name));
+        count += 1;
+    } else if *hw_jge == 0x90 { count += 1; }
+
+    // 9. Iteration cap JL at RVA 0xF0F7: 0F 8C -> 6 NOPs
+    let it_jl = (base as usize + 0xF0F7) as *mut u8;
+    if *it_jl == 0x0F && *it_jl.add(1) == 0x8C {
+        patch_memory(it_jl, &[0x90; 6]);
+        log_msg(&format!("[{}] Iteration cap JL NOP'd at RVA 0xF0F7", name));
+        count += 1;
+    } else if *it_jl == 0x90 { count += 1; }
+
+    // 10. Init cap at RVA 0x10568: C7 05 D2 66 06 00 [60 E3 16 00] -> change imm32 to 2B
+    //     MOV [rip+0x666D2], 1500000 -> MOV [rip+0x666D2], 2000000000
+    let init_cap = (base as usize + 0x10568) as *mut u8;
+    if *init_cap == 0xC7 && *init_cap.add(1) == 0x05 {
+        // Overwrite only the 4-byte immediate at offset +6
+        let imm_ptr = (base as usize + 0x10568 + 6) as *mut u32;
+        let mut old_p = 0;
+        if VirtualProtect(imm_ptr as *mut _, 4, PAGE_EXECUTE_READWRITE, &mut old_p) != 0 {
+            *imm_ptr = 2_000_000_000;
+            VirtualProtect(imm_ptr as *mut _, 4, old_p, &mut old_p);
+            log_msg(&format!("[{}] Init cap patched to 2B at RVA 0x10568", name));
+            count += 1;
+        }
+    } else { count += 1; }
+
+    // 11. Direct Live RAM Clamping (belt and suspenders)
     let ram_cap_ptr = (base as usize + 0x76C44) as *mut u32;
     let ram_budget_ptr = (base as usize + 0x76C54) as *mut u32;
     let mut old_protect = 0;
     if VirtualProtect(ram_cap_ptr as *mut _, 32, PAGE_EXECUTE_READWRITE, &mut old_protect) != 0 {
-        *ram_cap_ptr = 2_000_000_000; // 2 Billion iterations (~13.3 seconds)
-        *ram_budget_ptr = 2000;       // 2,000 ms budget
+        *ram_cap_ptr = 2_000_000_000;
+        *ram_budget_ptr = 2000;
         VirtualProtect(ram_cap_ptr as *mut _, 32, old_protect, &mut old_protect);
     }
+
+    log_msg(&format!("[{}] v3.0 Total Immunity: {}/10 patches applied, RAM clamped.", name, count));
 }
 
 unsafe fn patch_optiscaler(base: *const u8, name: &str) -> bool {
@@ -174,7 +277,7 @@ unsafe fn patch_optiscaler(base: *const u8, name: &str) -> bool {
 fn immortal_watchdog_loop() {
     let gpu_gen = env::var("ENY_GPU_GEN")
         .unwrap_or_else(|_| "unknown".to_string());
-    log_msg("Envy Watchdog v2.1.0 (Total Immunity: Watchdog Jumps NOP'd + Live RAM Clamped) started");
+    log_msg("Envy Watchdog v3.0.0 (Absolute Zero: Error routine neutralized at source) started");
     log_msg(&format!("Detected GPU generation: {}", gpu_gen));
 
     let mut optiscaler_done = false;
@@ -182,7 +285,6 @@ fn immortal_watchdog_loop() {
     let mut pass2_done = false;
     let mut pass3_done = false;
 
-    // TRUE IMMORTAL LOOP: runs for the entire lifetime of the process!
     loop {
         // 1. OptiScaler
         if !optiscaler_done {
@@ -211,13 +313,12 @@ fn immortal_watchdog_loop() {
                     let mod_str = std::ffi::CStr::from_ptr(mod_name.as_ptr() as *const i8).to_string_lossy();
                     
                     if !*done_ref {
-                        log_msg(&format!("Neutralizing all timeouts & traps in {}...", mod_str));
+                        log_msg(&format!("=== Neutralizing {} (v3.0 Absolute Zero) ===", mod_str));
                         patch_pass_module(base, &mod_str);
                         *done_ref = true;
-                        log_msg(&format!("{} is now 100% immune to drops and timeouts.", mod_str));
                     }
 
-                    // Keep RAM clamp active continuously
+                    // Keep RAM clamp active every cycle (belt and suspenders)
                     let ram_cap = (base as usize + 0x76C44) as *mut u32;
                     let ram_budget = (base as usize + 0x76C54) as *mut u32;
                     let mut old_p = 0;
@@ -230,7 +331,7 @@ fn immortal_watchdog_loop() {
             }
         }
 
-        thread::sleep(Duration::from_millis(500));
+        thread::sleep(Duration::from_millis(250));
     }
 }
 
