@@ -24,6 +24,14 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 <table>
   <tr>
     <td align="center" width="50%">
+      <b>🚗 Grand Theft Auto V Enhanced (Story Mode)</b><br>
+      <i>DirectX 12 Streamline Interception, DLSS 5 & BattlEye Bypass</i><br><br>
+      <a href="https://www.youtube.com/watch?v=kiMOxXV-ibY">
+        <img src="https://img.youtube.com/vi/kiMOxXV-ibY/maxresdefault.jpg" alt="GTA V Enhanced Showcase" width="100%"/>
+      </a><br>
+      <a href="https://www.youtube.com/watch?v=kiMOxXV-ibY">▶ Watch on YouTube</a>
+    </td>
+    <td align="center" width="50%">
       <b>🧟 Resident Evil Requiem (BIOHAZARD requiem)</b><br>
       <i>DLSS 5 Neural Tunneling, Multi-Pass Inference & RE Engine Stability</i><br><br>
       <a href="https://www.youtube.com/watch?v=Bzbo73zTuVA">
@@ -31,6 +39,8 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
       </a><br>
       <a href="https://www.youtube.com/watch?v=Bzbo73zTuVA">▶ Watch on YouTube</a>
     </td>
+  </tr>
+  <tr>
     <td align="center" width="50%">
       <b>🐾 Palworld</b><br>
       <i>Zero Stutters with The Digital Bottomless Pit Watchdog</i><br><br>
@@ -38,6 +48,11 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
         <img src="https://img.youtube.com/vi/C_uBqVn-abI/maxresdefault.jpg" alt="Palworld Showcase" width="100%"/>
       </a><br>
       <a href="https://www.youtube.com/watch?v=C_uBqVn-abI">▶ Watch on YouTube</a>
+    </td>
+    <td align="center" width="50%">
+      <b>⚡ Community Verified Titles</b><br>
+      <i>Final Fantasy XVI, No Man's Sky (Vulkan), and more</i><br><br>
+      <i>Rock-solid stability across AMD RDNA 3 and RDNA 4 GPUs.</i>
     </td>
   </tr>
 </table>
@@ -132,11 +147,16 @@ The time budget is permanently frozen at its maximum value (600ms). When OBS spi
        ```text
        E:\Steam\steamapps\common\FINAL FANTASY XVI DEMO
        ```
+     * **Grand Theft Auto V Enhanced (Story Mode):**
+       ```text
+       E:\Steam\steamapps\common\Grand Theft Auto V Enhanced
+       ```
+       *(Always launch with `-nobattleye` to bypass BattlEye for offline Story Mode).*
      * **Unreal Engine games** (e.g. *Palworld*):
        ```text
        C:\Steam\steamapps\common\Palworld\Pal\Binaries\Win64
        ```
-   * The installer will automatically tune `OptiScaler.ini`, deploy the appropriate proxy (`version.dll` for RE Engine, `dxgi.dll` for UE5), and install `EnvyDynamicPacing.asi`!
+   * The installer will automatically tune `OptiScaler.ini`, deploy the appropriate proxy (`version.dll` for RE Engine, `dxgi.dll` for UE5/DX12), and install `EnvyDynamicPacing.asi`!
 
 5. **Advanced / Alternative Installation Options:**
    * **PowerShell CLI:**
