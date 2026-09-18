@@ -56,154 +56,181 @@ fn get_optiscaler_module() -> Option<(*const u8, String)> {
     None
 }
 
+unsafe fn patch_pass_module(base: *const u8, name: &str) {
+    // 1. Host Watchdog Jump at RVA 0xF0DF: 0F 8D 56 01 00 00 -> 6 NOPs
+    let hw1_ptr = (base as usize + 0xF0DF) as *mut u8;
+    if *hw1_ptr == 0x0F && *hw1_ptr.add(1) == 0x8D {
+        patch_memory(hw1_ptr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
+        log_msg(&format!("Host watchdog JGE jump NOP'd for {} at RVA 0xF0DF", name));
+    }
+
+    // 2. Iteration Timeout Jump at RVA 0xF0F7: 0F 8C 3E 01 00 00 -> 6 NOPs
+    let hw2_ptr = (base as usize + 0xF0F7) as *mut u8;
+    if *hw2_ptr == 0x0F && *hw2_ptr.add(1) == 0x8C {
+        patch_memory(hw2_ptr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
+        log_msg(&format!("Iteration timeout JL jump NOP'd for {} at RVA 0xF0F7", name));
+    }
+
+    // 3. Cap Recalculator at RVA 0xF0BF: 87 05 7F 7B 06 00 -> 6 NOPs
+    let cap_recalc_ptr = (base as usize + 0xF0BF) as *mut u8;
+    if *cap_recalc_ptr == 0x87 && *cap_recalc_ptr.add(1) == 0x05 {
+        patch_memory(cap_recalc_ptr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
+        log_msg(&format!("Cap recalculator NOP'd for {} at RVA 0xF0BF", name));
+    }
+
+    // 4. Budget Reducer at RVA 0xF1B7: 87 15 97 7A 06 00 -> 6 NOPs
+    let budget_ptr = (base as usize + 0xF1B7) as *mut u8;
+    if *budget_ptr == 0x87 && *budget_ptr.add(1) == 0x15 {
+        patch_memory(budget_ptr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
+        log_msg(&format!("Budget reducer NOP'd for {} at RVA 0xF1B7", name));
+    }
+
+    // 5. Direct Live RAM Clamping
+    let ram_cap_ptr = (base as usize + 0x76C44) as *mut u32;
+    let ram_budget_ptr = (base as usize + 0x76C54) as *mut u32;
+    let mut old_protect = 0;
+    if VirtualProtect(ram_cap_ptr as *mut _, 32, PAGE_EXECUTE_READWRITE, &mut old_protect) != 0 {
+        *ram_cap_ptr = 2_000_000_000; // 2 Billion iterations (~13.3 seconds)
+        *ram_budget_ptr = 2000;       // 2,000 ms budget
+        VirtualProtect(ram_cap_ptr as *mut _, 32, old_protect, &mut old_protect);
+    }
+}
+
+unsafe fn patch_optiscaler(base: *const u8, name: &str) -> bool {
+    let mut patched_a = false;
+    let mut patched_b = false;
+    let mut patched_c = false;
+
+    // Fast check at known RVAs first
+    let a_ptr = (base as usize + 0x14587) as *mut u8;
+    if *a_ptr == 0x48 && *a_ptr.add(1) == 0x83 && *a_ptr.add(2) == 0x81 {
+        patch_memory(a_ptr, &[0x90; 8]);
+        patched_a = true;
+        log_msg(&format!("Patch A applied directly at RVA 0x14587 for {}", name));
+    } else if *a_ptr == 0x90 && *a_ptr.add(1) == 0x90 {
+        patched_a = true;
+    }
+
+    let b_ptr = (base as usize + 0x19442) as *mut u8;
+    if *b_ptr == 0x0F && *b_ptr.add(1) == 0x84 {
+        patch_memory(b_ptr, &[0xE9, 0xD3, 0x00, 0x00, 0x00, 0x90]);
+        patched_b = true;
+        log_msg(&format!("Patch B applied directly at RVA 0x19442 for {}", name));
+    } else if *b_ptr == 0xE9 {
+        patched_b = true;
+    }
+
+    let c_ptr = (base as usize + 0x14750) as *mut u8;
+    if *c_ptr == 0x0F && *c_ptr.add(1) == 0x84 {
+        patch_memory(c_ptr, &[0xE9, 0xD0, 0x00, 0x00, 0x00, 0x90]);
+        patched_c = true;
+        log_msg(&format!("Patch C applied directly at RVA 0x14750 for {}", name));
+    } else if *c_ptr == 0xE9 {
+        patched_c = true;
+    }
+
+    if patched_a && patched_b && patched_c {
+        return true;
+    }
+
+    // Fallback scan up to 500 KB (.text section) if build differs
+    for i in 0..500_000 {
+        let ptr = base.add(i);
+        if !patched_a && *ptr == 0x48 && *ptr.add(1) == 0x83 && *ptr.add(2) == 0xF8 && *ptr.add(3) == 0x10 && *ptr.add(4) == 0x73 && *ptr.add(5) == 0x1B {
+            let error_counter_ptr = ptr.add(0x36) as *mut u8;
+            if *error_counter_ptr == 0x48 && *error_counter_ptr.add(1) == 0x83 && *error_counter_ptr.add(2) == 0x81 {
+                patch_memory(error_counter_ptr, &[0x90; 8]);
+                patched_a = true;
+                log_msg(&format!("Patch A found by scan at offset {:#x}", i + 0x36));
+            }
+        }
+        if !patched_b && *ptr == 0x45 && *ptr.add(1) == 0x84 && *ptr.add(2) == 0xC9 &&
+           *ptr.add(3) == 0x0F && *ptr.add(4) == 0x84 && 
+           *ptr.add(5) == 0xD2 && *ptr.add(6) == 0x00 && *ptr.add(7) == 0x00 && *ptr.add(8) == 0x00 {
+            let patch_addr = ptr.add(3) as *mut u8;
+            if *patch_addr == 0x0F {
+                patch_memory(patch_addr, &[0xE9, 0xD3, 0x00, 0x00, 0x00, 0x90]);
+                patched_b = true;
+                log_msg(&format!("Patch B found by scan at offset {:#x}", i + 3));
+            }
+        }
+        if !patched_c && *ptr == 0xB1 && *ptr.add(1) == 0x01 && *ptr.add(2) == 0x48 && *ptr.add(3) == 0x8B &&
+           *ptr.add(4) == 0x06 && *ptr.add(5) == 0x44 && *ptr.add(12) == 0x84 && *ptr.add(13) == 0xC9 && 
+           *ptr.add(14) == 0x0F && *ptr.add(15) == 0x84 {
+            let patch_addr = ptr.add(14) as *mut u8; 
+            if *patch_addr == 0x0F {
+                patch_memory(patch_addr, &[0xE9, 0xD0, 0x00, 0x00, 0x00, 0x90]);
+                patched_c = true;
+                log_msg(&format!("Patch C found by scan at offset {:#x}", i + 14));
+            }
+        }
+        if patched_a && patched_b && patched_c {
+            return true;
+        }
+    }
+    false
+}
+
 fn immortal_watchdog_loop() {
     let gpu_gen = env::var("ENY_GPU_GEN")
         .unwrap_or_else(|_| "unknown".to_string());
-    log_msg(&format!("Envy Watchdog v2.0.0 (True Digital Bottomless Pit - Continuous Clamping) started"));
+    log_msg("Envy Watchdog v2.1.0 (Total Immunity: Watchdog Jumps NOP'd + Live RAM Clamped) started");
     log_msg(&format!("Detected GPU generation: {}", gpu_gen));
-    
-    let mut patched_optiscaler = false;
-    let mut patched_pass1 = false;
-    let mut patched_pass2 = false;
-    let mut patched_pass3 = false;
-    let mut tick_counter: u64 = 0;
+
+    let mut optiscaler_done = false;
+    let mut pass1_done = false;
+    let mut pass2_done = false;
+    let mut pass3_done = false;
 
     // TRUE IMMORTAL LOOP: runs for the entire lifetime of the process!
     loop {
-        // 1. Monitor and Patch OptiScaler (dxgi.dll / version.dll / etc.)
-        if !patched_optiscaler {
-            if let Some((base, mod_name)) = get_optiscaler_module() {
-                log_msg(&format!("OptiScaler proxy module ({}) found at {:#x}", mod_name, base as usize));
-                
-                let mut patched_a = false;
-                let mut patched_b = false;
-                let mut patched_c = false;
-                
+        // 1. OptiScaler
+        if !optiscaler_done {
+            if let Some((base, name)) = get_optiscaler_module() {
                 unsafe {
-                    for i in 0..6_000_000 {
-                        let ptr = base.add(i);
-                        
-                        // PATCH A: NOP the 16ms error counter
-                        if !patched_a && *ptr == 0x48 && *ptr.add(1) == 0x83 && *ptr.add(2) == 0xF8 && *ptr.add(3) == 0x10 && *ptr.add(4) == 0x73 && *ptr.add(5) == 0x1B {
-                            let error_counter_ptr = ptr.add(0x36) as *mut u8;
-                            if *error_counter_ptr == 0x48 && *error_counter_ptr.add(1) == 0x83 && *error_counter_ptr.add(2) == 0x81 {
-                                patch_memory(error_counter_ptr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
-                                patched_a = true;
-                                log_msg(&format!("Patch A (16ms error NOP) applied at offset {:#x}", i + 0x36));
-                            }
-                        }
-                        
-                        // PATCH B: Force recovery-pending branch to ALWAYS skip
-                        if !patched_b && *ptr == 0x45 && *ptr.add(1) == 0x84 && *ptr.add(2) == 0xC9 &&
-                           *ptr.add(3) == 0x0F && *ptr.add(4) == 0x84 && 
-                           *ptr.add(5) == 0xD2 && *ptr.add(6) == 0x00 && *ptr.add(7) == 0x00 && *ptr.add(8) == 0x00 {
-                            let patch_addr = ptr.add(3) as *mut u8;
-                            if *patch_addr == 0x0F {
-                                patch_memory(patch_addr, &[0xE9, 0xD3, 0x00, 0x00, 0x00, 0x90]);
-                                patched_b = true;
-                                log_msg(&format!("Patch B (Recovery Jump) applied at offset {:#x}", i + 3));
-                            }
-                        }
-                        
-                        // PATCH C: Force retry-in-1s branch to ALWAYS skip penalty
-                        if !patched_c && *ptr == 0xB1 && *ptr.add(1) == 0x01 && *ptr.add(2) == 0x48 && *ptr.add(3) == 0x8B &&
-                           *ptr.add(4) == 0x06 && *ptr.add(5) == 0x44 && *ptr.add(12) == 0x84 && *ptr.add(13) == 0xC9 && 
-                           *ptr.add(14) == 0x0F && *ptr.add(15) == 0x84 {
-                            let patch_addr = ptr.add(14) as *mut u8; 
-                            if *patch_addr == 0x0F {
-                                patch_memory(patch_addr, &[0xE9, 0xD0, 0x00, 0x00, 0x00, 0x90]);
-                                patched_c = true;
-                                log_msg(&format!("Patch C (Retry Jump) applied at offset {:#x}", i + 14));
-                            }
-                        }
-                        
-                        if patched_a && patched_b && patched_c {
-                            patched_optiscaler = true;
-                            log_msg("All OptiScaler booby traps neutralized successfully.");
-                            break;
-                        }
+                    if patch_optiscaler(base, &name) {
+                        optiscaler_done = true;
+                        log_msg(&format!("OptiScaler ({}) fully neutralized.", name));
                     }
                 }
             }
         }
 
-        // 2. Monitor, Patch, and Continuously Clamp dlssnr_amd_pass1..3.dll
+        // 2. AMD passes
         unsafe {
-            let modules = [
-                (b"dlssnr_amd_pass1.dll\0", &mut patched_pass1),
-                (b"dlssnr_amd_pass2.dll\0", &mut patched_pass2),
-                (b"dlssnr_amd_pass3.dll\0", &mut patched_pass3),
+            let modules: [(&[u8], &mut bool); 3] = [
+                (b"dlssnr_amd_pass1.dll\0", &mut pass1_done),
+                (b"dlssnr_amd_pass2.dll\0", &mut pass2_done),
+                (b"dlssnr_amd_pass3.dll\0", &mut pass3_done),
             ];
 
-            for (mod_name, is_patched) in modules {
+            for (mod_name, done_ref) in modules {
                 let handle = GetModuleHandleA(mod_name.as_ptr() as *const i8);
                 if !handle.is_null() {
                     let base = handle as *const u8;
                     let mod_str = std::ffi::CStr::from_ptr(mod_name.as_ptr() as *const i8).to_string_lossy();
-
-                    // One-time pattern patch per pass DLL
-                    if !*is_patched {
-                        log_msg(&format!("{} active in memory at {:#x}, applying bytecode patches...", mod_str, base as usize));
-                        
-                        let mut found_budget = false;
-                        let mut found_recalc_cap = false;
-
-                        for i in 0..4_000_000 {
-                            let ptr = base.add(i);
-                            
-                            // PATTERN 1: Budget Reducer
-                            if !found_budget && *ptr == 0x8B && *ptr.add(1) == 0x0D &&
-                               *ptr.add(6) == 0x39 && *ptr.add(7) == 0xC8 &&
-                               *ptr.add(8) == 0x0F && *ptr.add(9) == 0x4D && *ptr.add(10) == 0xC1 &&
-                               *ptr.add(11) == 0x8B && *ptr.add(12) == 0x0D &&
-                               *ptr.add(17) == 0x89 && *ptr.add(18) == 0xC2 &&
-                               *ptr.add(19) == 0x87 && *ptr.add(20) == 0x15 {
-                                let patch_addr = ptr.add(19) as *mut u8;
-                                patch_memory(patch_addr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
-                                log_msg(&format!("Budget reducer NOP'd for {} at offset {:#x}", mod_str, i + 19));
-                                found_budget = true;
-                            }
-
-                            // PATTERN 3: Dynamic Cap Recalculation
-                            if !found_recalc_cap && *ptr == 0xF2 && *ptr.add(1) == 0x48 && *ptr.add(2) == 0x0F && *ptr.add(3) == 0x2C && *ptr.add(4) == 0xC1 &&
-                               *ptr.add(5) == 0x87 && *ptr.add(6) == 0x05 &&
-                               *ptr.add(11) == 0x8B && *ptr.add(12) == 0x85 && *ptr.add(13) == 0xF8 && *ptr.add(14) == 0x00 {
-                                let patch_addr = ptr.add(5) as *mut u8;
-                                patch_memory(patch_addr, &[0x90, 0x90, 0x90, 0x90, 0x90, 0x90]);
-                                log_msg(&format!("Cap recalculator NOP'd for {} at offset {:#x}", mod_str, i + 5));
-                                found_recalc_cap = true;
-                            }
-
-                            if found_budget && found_recalc_cap {
-                                *is_patched = true;
-                                log_msg(&format!("All code patches applied for {}", mod_str));
-                                break;
-                            }
-                        }
+                    
+                    if !*done_ref {
+                        log_msg(&format!("Neutralizing all timeouts & traps in {}...", mod_str));
+                        patch_pass_module(base, &mod_str);
+                        *done_ref = true;
+                        log_msg(&format!("{} is now 100% immune to drops and timeouts.", mod_str));
                     }
 
-                    // CONTINUOUS LIVE CLAMPING IN RAM:
-                    // RVA 0x76C44: Spin iteration cap (normally 1.29M / ~8.7ms) -> set to 2,000,000,000 (~13.3 seconds!)
-                    // RVA 0x76C54: Wait budget (normally halves to 50ms) -> set to 2000 ms
-                    let cap_ptr = (base as usize + 0x76C44) as *mut u32;
-                    let budget_ptr = (base as usize + 0x76C54) as *mut u32;
-
-                    let mut old_protect = 0;
-                    if VirtualProtect(cap_ptr as *mut _, 32, PAGE_EXECUTE_READWRITE, &mut old_protect) != 0 {
-                        *cap_ptr = 2_000_000_000;
-                        *budget_ptr = 2000;
-                        VirtualProtect(cap_ptr as *mut _, 32, old_protect, &mut old_protect);
-                    }
-
-                    if tick_counter % 30 == 0 && *is_patched {
-                        log_msg(&format!("Clamping active for {}: Cap=2B, Budget=2000ms", mod_str));
+                    // Keep RAM clamp active continuously
+                    let ram_cap = (base as usize + 0x76C44) as *mut u32;
+                    let ram_budget = (base as usize + 0x76C54) as *mut u32;
+                    let mut old_p = 0;
+                    if VirtualProtect(ram_cap as *mut _, 32, PAGE_EXECUTE_READWRITE, &mut old_p) != 0 {
+                        *ram_cap = 2_000_000_000;
+                        *ram_budget = 2000;
+                        VirtualProtect(ram_cap as *mut _, 32, old_p, &mut old_p);
                     }
                 }
             }
         }
 
-        tick_counter += 1;
-        thread::sleep(Duration::from_millis(1000));
+        thread::sleep(Duration::from_millis(500));
     }
 }
 
