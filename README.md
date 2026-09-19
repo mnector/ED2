@@ -63,7 +63,7 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 
 * 🚀 **AMD Neural Rendering Support:** Experience high-end upscaling paths natively adapted for AMD architecture via HIP.
 * 🔮 **Universal DLSS-to-DLSS 5 Pipeline:** Intercepts DLSS inputs in any DirectX 12 game, tunnels them through FSR 3.1 (`ffx`), and processes them through neural reconstruction layers (`DlssNr` + `AmdLook`) to output a next-generation "DLSS 5" appearance on AMD RDNA GPUs.
-* 🛡️ **The Digital Bottomless Pit (v1.0.0):** A revolutionary memory-patching ASI plugin that perfectly prevents frame-drops and DLSS deactivations by freezing the internal `dlssnr_amd` time budget.
+* 🛡️ **The Digital Bottomless Pit (v5.0.0):** Advanced memory-patching ASI plugin that completely cures frame-drops, eliminates internal 16ms timeouts, suppresses false history resets, and forces neural reconstruction continuity even under severe GPU loads.
 * ⚙️ **Native TDR Configuration:** Setup automatically configures Windows TDR registry to prevent AMD HIP compute kernel timeouts during heavy neural rendering passes.
 * 🧠 **GPU-Aware Auto-Tune:** Detects your RDNA generation at install time and configures optimal DlssNr parameters.
 * 🔧 **Engine-Specific Tuning:** Includes automatic resource barrier fixes for Unreal Engine 5 and Streamline/FrameGen isolation + exposure scanning fixes for Capcom RE Engine.
@@ -111,15 +111,17 @@ Furthermore, if the frame takes too long, OptiScaler's `dxgi.dll` falls into int
 
 ---
 
-## 🛠️ The Solution: EnvyDynamicPacing.asi
+## 🛠️ The Solution: EnvyDynamicPacing.asi (Watchdog v5.0.0)
 
-`EnvyDynamicPacing.asi` is a custom ASI plugin loaded directly by OptiScaler that solves both issues via surgical memory patching:
+`EnvyDynamicPacing.asi` is an advanced memory-patching ASI plugin loaded directly by OptiScaler's native plugin loader. Version 1.0.4 completely cures frame pacing breakdowns and raw unscaled frame leaks through surgical assembly interception:
 
-1. **OptiScaler 1-Second Penalty Bypass:** It locates the `dxgi.dll` module and dynamically rewrites the assembly branches (`je` -> `jmp`) for the two timeout penalties, making them mathematically unreachable.
-2. **AMD Proxy Budget Freezer & Iteration Cap Unlocked:** It scans `dlssnr_amd_pass*.dll` modules to find the exact `xchg` instruction that dynamically lowers the time budget, and completely NOPs it out (replacing it with `0x90`). 
+1. **Root-Cause Flag Interception (`0x76D54`):** The AMD neural renderer (`dlssnr_amd`) controls frame acceptance through a master memory flag at RVA `0x76D54` (`>= 0`: Success; `< 0`: Discard & Render Raw). ED2 v1.0.4 patches the initialization at `0x1061E` to `0` (Success by default), NOPs the unpatched timeout branch at `0xF0D1`, overrides error writes at `0xF293` to `0`, and continuously clamps `0x76D54` to `0` in live RAM every 50ms.
+2. **OptiScaler 16ms Pre-SR Bypass:** OptiScaler contains an internal 16ms deadline on AMD passes. ED2 dynamically hot-patches RVA `0x14585` (`JAE` -> `JMP`), making OptiScaler time-blind so it never aborts frames before sending them to the neural net.
+3. **Engine History Reset Suppression (`SkipReset = true`):** When severe GPU load spikes occur (200ms+), game engines (such as RE Engine, Final Fantasy XVI, UE5) falsely assume a scene cut/teleport and issue an explicit `ResetHistory` command to DLSS, which would normally purge the temporal buffer and flash an un-accumulated raw frame. ED2 suppresses these resets, preserving continuous temporal reconstruction through any spike.
+4. **Log Sanity & Epilogue Integrity:** Preserves the clean execution jump at RVA `0xF138`, completely preventing false-positive host watchdog timeout log flooding.
 
 **The Result:** 
-The time budget is permanently frozen at its maximum value (600ms). When OBS spikes the game to 190ms, the proxy simply waits patiently. The game engine gracefully yields (relentiza) to the GPU's pace, processes the interpolated frame successfully, and presents it. Unprocessed raw frames are completely eliminated, achieving perfect frame pacing under heavy load without catastrophic 6-second TLB-shootdown freezes!
+The renderer is fully immune to frame cancellation. When extreme GPU load or background apps (like OBS) cause a frame to take 200ms+, the engine simply drops FPS gracefully ("regula los FPS"), maintaining 100% reconstructed neural fidelity without flickering raw images, stutters, or crashes!
 
 ---
 
@@ -127,7 +129,7 @@ The time budget is permanently frozen at its maximum value (600ms). When OBS spi
 
 ### Quick Installation (Recommended)
 
-1. Go to the **[Releases](https://github.com/mnector/Envy-Diamond/releases)** tab and download the latest `Envy-Diamond-2-v1.0.3.zip`.
+1. Go to the **[Releases](https://github.com/mnector/Envy-Diamond/releases)** tab and download the latest `Envy-Diamond-2-v1.0.4.zip`.
 2. Extract the package contents to a folder on your PC (e.g., `C:\Tools\ED2`).
 3. **Configure Windows TDR (One-Click):**
    Double-click **`Fix_TDR_Admin.bat`**. 

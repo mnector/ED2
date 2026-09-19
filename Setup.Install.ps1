@@ -186,6 +186,8 @@ $iniContent = Set-IniValue $iniContent 'FrameGen' 'SkipResizeBuffers' 'false'
 $iniContent = Set-IniValue $iniContent 'FrameGen' 'PreserveSwapChain' 'false'
 $iniContent = Set-IniValue $iniContent 'FrameGen' 'ModifyBufferState' 'true'
 $iniContent = Set-IniValue $iniContent 'FrameGen' 'ModifySCIndex'     'true'
+$iniContent = Set-IniValue $iniContent 'FrameGen' 'SkipReset'         'true'
+$iniContent = Set-IniValue $iniContent 'Inputs'   'SkipReset'         'true'
 
 # ── Resource Barriers: only for UE5 AMD (breaks RE Engine / other D3D12 engines) ──
 $isUE = ($game -match 'Binaries[\\/]Win64') -or (Test-Path -LiteralPath (Join-Path $game '..\..\Engine') -PathType Container)
