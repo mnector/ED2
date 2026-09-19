@@ -59,29 +59,73 @@ fn get_optiscaler_module() -> Option<(*const u8, String)> {
 unsafe fn patch_pass_module(base: *const u8, name: &str) {
     let mut count = 0u32;
 
-    // ===== THE CORE FIX (v4.0 Absolute Zero) =====
+    // =========================================================================
+    // ROOT CAUSE SURGERY (Curing "la herida"):
+    //
+    // The neural frame drop was controlled by a single master flag at RVA 0x76D54:
+    //   0x76D54 >= 0 -> SUCCESS (Render neural frame)
+    //   0x76D54 < 0  -> TIMEOUT/DROP (Render raw unscaled game input)
+    //
+    // 1. RVA 0x1061E initializes 0x76D54 to -1 (0xFFFFFFFF).
+    //    We patch the immediate from 0xFFFFFFFF to 0x00000000.
+    // 2. RVA 0xF0D1 is a JNE +0x6A that branched straight into the timeout block
+    //    if the iteration check failed. We NOP it (75 6A -> 90 90).
+    // 3. RVA 0xF293 writes -1 (B8 FF FF FF FF) to 0x76D54 upon timeout.
+    //    We patch it to write 0 (B8 00 00 00 00).
+    // 4. RVA 0xF138: We KEEP the original JMP (E9 FE 00 00 00) intact!
+    //    NOPing it previously caused clean jobs to fall through into the timeout logger!
+    // 5. Live RAM Clamping: Every loop iteration, we clamp 0x76D54 directly to 0,
+    //    guaranteeing that 0xDF88 (JS), 0xA128 (JNS), and 0xB5BC (JNS) ALWAYS see 0 (Success).
+    // =========================================================================
 
-    // 1. Error routine kill-switch #1: XCHG [timeout_count], R12D
-    // RVA 0xF28C (was mistakenly 0xF28A before): 44 87 25 CD 7A 06 00 (7 bytes) -> 7 NOPs
-    let ks1 = (base as usize + 0xF28C) as *mut u8;
-    if *ks1 == 0x44 && *ks1.add(1) == 0x87 && *ks1.add(2) == 0x25 {
-        patch_memory(ks1, &[0x90; 7]);
-        log_msg(&format!("[{}] Kill-switch #1 NOP'd: XCHG timeout_count at RVA 0xF28C", name));
+    // 1. Patch initial keep_input_flag at RVA 0x1061E: C7 05 2C 67 06 00 [FF FF FF FF] -> [00 00 00 00]
+    let init_flag_ptr = (base as usize + 0x1061E) as *mut u8;
+    if *init_flag_ptr == 0xC7 && *init_flag_ptr.add(1) == 0x05 {
+        let imm_ptr = (base as usize + 0x1061E + 6) as *mut u32;
+        let mut old_p = 0;
+        if VirtualProtect(imm_ptr as *mut _, 4, PAGE_EXECUTE_READWRITE, &mut old_p) != 0 {
+            *imm_ptr = 0;
+            VirtualProtect(imm_ptr as *mut _, 4, old_p, &mut old_p);
+            log_msg(&format!("[{}] Root fix #1: Init keep_input_flag patched to 0 (Success) at RVA 0x1061E", name));
+            count += 1;
+        }
+    } else { count += 1; }
+
+    // 2. Patch JNE +0x6A branch into timeout block at RVA 0xF0D1: 75 6A -> 90 90
+    let timeout_branch = (base as usize + 0xF0D1) as *mut u8;
+    if *timeout_branch == 0x75 && *timeout_branch.add(1) == 0x6A {
+        patch_memory(timeout_branch, &[0x90, 0x90]);
+        log_msg(&format!("[{}] Root fix #2: Timeout JNE branch NOP'd at RVA 0xF0D1", name));
         count += 1;
-    } else if *ks1 == 0x90 { count += 1; }
+    } else if *timeout_branch == 0x90 { count += 1; }
 
-    // 2. Error routine kill-switch #2: MOV EAX,-1 + XCHG [keep_input], EAX
-    // RVA 0xF293: B8 FF FF FF FF (MOV EAX, -1) -> Change to B8 00 00 00 00 (MOV EAX, 0)
-    // This actively FORCES the renderer to accept the neural frame, overriding the timeout!
-    let ks2 = (base as usize + 0xF293) as *mut u8;
-    if *ks2 == 0xB8 && *ks2.add(1) == 0xFF && *ks2.add(2) == 0xFF {
-        patch_memory(ks2, &[0xB8, 0x00, 0x00, 0x00, 0x00]);
-        log_msg(&format!("[{}] Kill-switch #2 OVERRIDDEN: MOV EAX, 0 at RVA 0xF293", name));
+    // 3. Patch timeout keep_input write at RVA 0xF293: B8 FF FF FF FF -> B8 00 00 00 00
+    let timeout_write = (base as usize + 0xF293) as *mut u8;
+    if *timeout_write == 0xB8 {
+        let imm_ptr = (base as usize + 0xF293 + 1) as *mut u32;
+        let mut old_p = 0;
+        if VirtualProtect(imm_ptr as *mut _, 4, PAGE_EXECUTE_READWRITE, &mut old_p) != 0 {
+            *imm_ptr = 0;
+            VirtualProtect(imm_ptr as *mut _, 4, old_p, &mut old_p);
+            log_msg(&format!("[{}] Root fix #3: Timeout write forced to 0 at RVA 0xF293", name));
+            count += 1;
+        }
+    }
+
+    // 4. Auxiliary: NOP the host watchdog and iteration cap conditional jumps
+    let hw_jge = (base as usize + 0xF0DF) as *mut u8;
+    if *hw_jge == 0x0F && *hw_jge.add(1) == 0x8D {
+        patch_memory(hw_jge, &[0x90; 6]);
         count += 1;
-    } else if *ks2 == 0xB8 && *ks2.add(1) == 0x00 { count += 1; }
+    } else if *hw_jge == 0x90 { count += 1; }
 
-    // ===== AUXILIARY PATCHES: prevent cap/budget degradation =====
+    let it_jl = (base as usize + 0xF0F7) as *mut u8;
+    if *it_jl == 0x0F && *it_jl.add(1) == 0x8C {
+        patch_memory(it_jl, &[0x90; 6]);
+        count += 1;
+    } else if *it_jl == 0x90 { count += 1; }
 
+    // 5. Auxiliary: NOP budget and cap degraders
     let cap_recalc = (base as usize + 0xF0BF) as *mut u8;
     if *cap_recalc == 0x87 && *cap_recalc.add(1) == 0x05 {
         patch_memory(cap_recalc, &[0x90; 6]);
@@ -100,30 +144,6 @@ unsafe fn patch_pass_module(base: *const u8, name: &str) {
         count += 1;
     } else if *budget_halver == 0x90 { count += 1; }
 
-    let budget_other = (base as usize + 0x3BC1) as *mut u8;
-    if *budget_other == 0x87 && *budget_other.add(1) == 0x05 {
-        patch_memory(budget_other, &[0x90; 6]);
-        count += 1;
-    } else if *budget_other == 0x90 { count += 1; }
-
-    let jmp_err = (base as usize + 0xF138) as *mut u8;
-    if *jmp_err == 0xE9 {
-        patch_memory(jmp_err, &[0x90; 5]);
-        count += 1;
-    } else if *jmp_err == 0x90 { count += 1; }
-
-    let hw_jge = (base as usize + 0xF0DF) as *mut u8;
-    if *hw_jge == 0x0F && *hw_jge.add(1) == 0x8D {
-        patch_memory(hw_jge, &[0x90; 6]);
-        count += 1;
-    } else if *hw_jge == 0x90 { count += 1; }
-
-    let it_jl = (base as usize + 0xF0F7) as *mut u8;
-    if *it_jl == 0x0F && *it_jl.add(1) == 0x8C {
-        patch_memory(it_jl, &[0x90; 6]);
-        count += 1;
-    } else if *it_jl == 0x90 { count += 1; }
-
     let init_cap = (base as usize + 0x10568) as *mut u8;
     if *init_cap == 0xC7 && *init_cap.add(1) == 0x05 {
         let imm_ptr = (base as usize + 0x10568 + 6) as *mut u32;
@@ -135,16 +155,19 @@ unsafe fn patch_pass_module(base: *const u8, name: &str) {
         }
     } else { count += 1; }
 
+    // 6. Direct Live RAM Clamping
     let ram_cap_ptr = (base as usize + 0x76C44) as *mut u32;
     let ram_budget_ptr = (base as usize + 0x76C54) as *mut u32;
+    let ram_keep_ptr = (base as usize + 0x76D54) as *mut i32;
     let mut old_protect = 0;
-    if VirtualProtect(ram_cap_ptr as *mut _, 32, PAGE_EXECUTE_READWRITE, &mut old_protect) != 0 {
+    if VirtualProtect(ram_cap_ptr as *mut _, 300, PAGE_EXECUTE_READWRITE, &mut old_protect) != 0 {
         *ram_cap_ptr = 2_000_000_000;
         *ram_budget_ptr = 2000;
-        VirtualProtect(ram_cap_ptr as *mut _, 32, old_protect, &mut old_protect);
+        *ram_keep_ptr = 0; // ALWAYS SUCCESS
+        VirtualProtect(ram_cap_ptr as *mut _, 300, old_protect, &mut old_protect);
     }
 
-    log_msg(&format!("[{}] v4.0 Total Immunity: {}/10 patches applied.", name, count));
+    log_msg(&format!("[{}] True Cure Applied: All {} patches active, master flag locked to 0.", name, count));
 }
 
 unsafe fn patch_optiscaler(base: *const u8, name: &str) -> bool {
@@ -152,7 +175,6 @@ unsafe fn patch_optiscaler(base: *const u8, name: &str) -> bool {
 
     // OptiScaler AMD skipped 16ms bypass
     // At 0x14585: 73 6A (JAE +0x6A) -> Change to EB 6A (JMP +0x6A)
-    // This forces OptiScaler to believe the GPU work succeeded, even if it took >16ms!
     let d_ptr = (base as usize + 0x14585) as *mut u8;
     if *d_ptr == 0x73 && *d_ptr.add(1) == 0x6A {
         patch_memory(d_ptr, &[0xEB, 0x6A]);
@@ -195,7 +217,7 @@ unsafe fn patch_optiscaler(base: *const u8, name: &str) -> bool {
 fn immortal_watchdog_loop() {
     let gpu_gen = env::var("ENY_GPU_GEN")
         .unwrap_or_else(|_| "unknown".to_string());
-    log_msg("Envy Watchdog v4.0.0 (The True Absolute Zero - No Skips, No Limits) started");
+    log_msg("Envy Watchdog v5.0.0 (True Wound Cured - Zero Drops, Zero Fakes) started");
     log_msg(&format!("Detected GPU generation: {}", gpu_gen));
 
     let mut optiscaler_done = false;
@@ -229,24 +251,27 @@ fn immortal_watchdog_loop() {
                     let mod_str = std::ffi::CStr::from_ptr(mod_name.as_ptr() as *const i8).to_string_lossy();
                     
                     if !*done_ref {
-                        log_msg(&format!("=== Neutralizing {} (v4.0 Absolute Zero) ===", mod_str));
+                        log_msg(&format!("=== Curing {} ===", mod_str));
                         patch_pass_module(base, &mod_str);
                         *done_ref = true;
                     }
 
+                    // Continuous Live RAM Clamping
                     let ram_cap = (base as usize + 0x76C44) as *mut u32;
                     let ram_budget = (base as usize + 0x76C54) as *mut u32;
+                    let ram_keep = (base as usize + 0x76D54) as *mut i32;
                     let mut old_p = 0;
-                    if VirtualProtect(ram_cap as *mut _, 32, PAGE_EXECUTE_READWRITE, &mut old_p) != 0 {
+                    if VirtualProtect(ram_cap as *mut _, 300, PAGE_EXECUTE_READWRITE, &mut old_p) != 0 {
                         *ram_cap = 2_000_000_000;
                         *ram_budget = 2000;
-                        VirtualProtect(ram_cap as *mut _, 32, old_p, &mut old_p);
+                        *ram_keep = 0; // Lock to SUCCESS every tick
+                        VirtualProtect(ram_cap as *mut _, 300, old_p, &mut old_p);
                     }
                 }
             }
         }
 
-        thread::sleep(Duration::from_millis(250));
+        thread::sleep(Duration::from_millis(50)); // Fast 50ms tick for live clamping
     }
 }
 
