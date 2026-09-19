@@ -232,6 +232,13 @@ if ($isNMS) {
     $iniContent = Set-IniValue $iniContent 'Upscalers' 'VulkanUpscaler'         'ffx'
 }
 
+# ── Grand Theft Auto V tuning: use INSERT (0x2D) to avoid collision with Rockstar Social Club (HOME) ──
+$isGTA = (Test-Path -LiteralPath (Join-Path $game 'GTA5.exe')) -or (Test-Path -LiteralPath (Join-Path $game 'GTA5_Enhanced.exe')) -or (Test-Path -LiteralPath (Join-Path $game 'PlayGTAV.exe'))
+if ($isGTA) {
+    $iniContent = Set-IniValue $iniContent 'Menu' 'ShortcutKey' '0x2D'
+    $iniContent = Set-IniValue $iniContent 'Menu' 'MenuKey'     '0x2D'
+}
+
 # ── Framerate: remove the daemon's static limit ──
 $iniContent = Set-IniValue $iniContent 'Framerate' 'FramerateLimit' '0.0'
 
