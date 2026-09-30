@@ -19,12 +19,10 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 
 ---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
 
 
@@ -68,12 +66,10 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 
 ---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
 
 
@@ -88,12 +84,10 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 
 ---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
 
 
@@ -126,12 +120,10 @@ Envy-Diamond-2 (ED2) is a generic translation architecture designed to achieve n
 
 ---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
 
 
@@ -147,12 +139,10 @@ Furthermore, if the frame takes too long, OptiScaler's `dxgi.dll` falls into int
 
 ---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
 
 
@@ -170,12 +160,10 @@ The renderer is fully immune to frame cancellation. When extreme GPU load or bac
 
 ---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
 
 
@@ -231,21 +219,17 @@ The renderer is fully immune to frame cancellation. When extreme GPU load or bac
 | Script | Purpose |
 | :---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
  | :---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
  |
 | **`Fix_TDR_Admin.bat`** | Double-click to auto-elevate and configure safe 60s Windows TDR timeout limits for AMD GPUs. |
@@ -255,12 +239,10 @@ The renderer is fully immune to frame cancellation. When extreme GPU load or bac
 
 ---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
 
 
@@ -322,12 +304,10 @@ When running ED2 with Capcom RE Engine games that integrate NVIDIA Streamline, s
 
 ---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
 
 
@@ -347,12 +327,10 @@ This guarantees the proxy passes `ResizeBuffers` events seamlessly to the game e
 
 ---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
 
 
@@ -369,12 +347,10 @@ This guarantees the proxy passes `ResizeBuffers` events seamlessly to the game e
 
 ---
 
-## What's New in v1.0.5 (AMD-NR Backend Update)
-- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
-- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
-- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
-- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
-- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+## What's New in v1.0.5 (Online Installer Update)
+- **Legal & License Compliance:** ED2 is now 100% compliant and respects the licensing of third-party developers. It no longer bundles any copyrighted files.
+- **Online Automated Installer:** The installation script now automatically fetches the latest official releases from **3zwr1/AMD-NR---OptiScaler** (GPL-3.0) and **danielblnc/DLSS-NR-on-AMD** (All Rights Reserved) directly from GitHub at runtime.
+- **Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
 
 
 
@@ -397,6 +373,7 @@ This guarantees the proxy passes `ResizeBuffers` events seamlessly to the game e
 *¡Muchas gracias por tu apoyo! Cada donación ayuda enormemente a seguir investigando, mejorando el código y testeando nuevos juegos.*
 
 </div>
+
 
 
 
