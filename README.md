@@ -19,6 +19,15 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 
 ---
 
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+
+
 ## 🎥 See it in Action
 
 <table>
@@ -59,6 +68,15 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 
 ---
 
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+
+
 ## ⚡ Features
 
 * 🚀 **AMD Neural Rendering Support:** Experience high-end upscaling paths natively adapted for AMD architecture via HIP.
@@ -69,6 +87,15 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 * 🔧 **Engine-Specific Tuning:** Includes automatic resource barrier fixes for Unreal Engine 5 and Streamline/FrameGen isolation + exposure scanning fixes for Capcom RE Engine.
 
 ---
+
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+
 
 ## 🏛️ How ED2 Works: The "DLSS 5" Neural Tunnel
 
@@ -99,6 +126,15 @@ Envy-Diamond-2 (ED2) is a generic translation architecture designed to achieve n
 
 ---
 
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+
+
 ## 🛑 The Micro-Stutter Problem
 
 When running DLSS Neural Rendering (DLSS-NR) via OptiScaler on AMD hardware (especially while using heavy software like OBS Studio), the GPU queue can occasionally bloat. A frame that normally takes 30ms might take 190ms to submit.
@@ -110,6 +146,15 @@ Because the budget drops to 87ms, any frame that takes 190ms to process is insta
 Furthermore, if the frame takes too long, OptiScaler's `dxgi.dll` falls into internal "booby traps" (at `0x180019442` and `0x180014750`) that completely disable the DLSS Neural Renderer for **1,000 milliseconds**, compounding the stutter.
 
 ---
+
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+
 
 ## 🛠️ The Solution: EnvyDynamicPacing.asi (Watchdog v5.0.0)
 
@@ -124,6 +169,15 @@ Furthermore, if the frame takes too long, OptiScaler's `dxgi.dll` falls into int
 The renderer is fully immune to frame cancellation. When extreme GPU load or background apps (like OBS) cause a frame to take 200ms+, the engine simply drops FPS gracefully ("regula los FPS"), maintaining 100% reconstructed neural fidelity without flickering raw images, stutters, or crashes!
 
 ---
+
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+
 
 ## 📥 Installation
 
@@ -175,13 +229,40 @@ The renderer is fully immune to frame cancellation. When extreme GPU load or bac
 ### ⚡ Easy 1-Click Tools Reference
 
 | Script | Purpose |
-| :--- | :--- |
+| :---
+
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+ | :---
+
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+ |
 | **`Fix_TDR_Admin.bat`** | Double-click to auto-elevate and configure safe 60s Windows TDR timeout limits for AMD GPUs. |
 | **`Install_Game_Admin.bat`** | Double-click to auto-elevate and install ED2 by simply entering/dragging your game folder path. |
 | **`Setup.bat`** | Graphical user interface (GUI) installer for picking `.exe` files via Windows Explorer. |
 | **`Setup.Validate.ps1`** | Validates files, proxies, ASI plugins, and registry settings for complete peace of mind. |
 
 ---
+
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+
 
 ### 🧟 Capcom RE Engine Configuration Notes (Resident Evil Requiem / BIOHAZARD requiem)
 
@@ -241,6 +322,15 @@ When running ED2 with Capcom RE Engine games that integrate NVIDIA Streamline, s
 
 ---
 
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+
+
 ### 🏛️ Universal DX12 Stability (Swapchain Resize Fixes)
 
 Many DirectX 12 games crash when transitioning from pre-rendered intro videos (often fixed resolution/refresh rates) to the main menu (full 3D render target resolution) because the game engine attempts to resize the DXGI swapchain while Frame Generation proxies are active.
@@ -257,6 +347,15 @@ This guarantees the proxy passes `ResizeBuffers` events seamlessly to the game e
 
 ---
 
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+
+
 ## ⚖️ Disclaimer
 
 > [!CAUTION]
@@ -269,6 +368,15 @@ This guarantees the proxy passes `ResizeBuffers` events seamlessly to the game e
 > **GPU Generation:** The installer detects your AMD GPU generation and optimizes settings accordingly. Full DLSS-NR support requires RDNA 3 or newer.
 
 ---
+
+## What's New in v1.0.5 (AMD-NR Backend Update)
+- **Complete Backend Overhaul:** Transitioned from the legacy ED2/EnvyDynamicPacing watchdog to the highly optimized **AMD-NR (OptiScaler build)** and **DLSS-NR-on-AMD (Daniel Blanco)** runtimes.
+- **Massive Performance Gains:** Eliminates driver timeouts (TDRs) and real-time gaming stutters completely.
+- **Model Interleave Support:** Native capability to distribute neural rendering costs across multiple frames for massive FPS boosts (configurable via OptiScaler.ini).
+- **Uninstaller Added:** Added Uninstall.ps1 to completely and cleanly remove all ED2/AMD-NR files and restore games to their original state.
+- Removed obsolete EnvyDynamicPacing.asi and Rust source code as pacing is now handled gracefully by the AMD-NR runtime.
+
+
 
 <div align="center">
 
@@ -289,5 +397,6 @@ This guarantees the proxy passes `ResizeBuffers` events seamlessly to the game e
 *¡Muchas gracias por tu apoyo! Cada donación ayuda enormemente a seguir investigando, mejorando el código y testeando nuevos juegos.*
 
 </div>
+
 
 

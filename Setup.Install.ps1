@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference='Stop'
 # Check the complete backend before changing any game files. These binaries
 # expose a private ABI and cannot be mixed with another OptiScaler AMD release.
-$runtimeHash='3C9CA13F0F5FC36A690BA424C457003BCFCC1080B4B785974CDD7E9AE2BC1DD8'
+$runtimeHash='CDDFB09E019347957BF7B96C95C0E900E8D3062DFAED697A8A96B0A039AEC31A'
 foreach ($pass in 1..3) {
     $runtime=Join-Path $PSScriptRoot "dlssnr_amd_pass$pass.dll"
     if (!(Test-Path -LiteralPath $runtime -PathType Leaf) -or (Get-FileHash -LiteralPath $runtime).Hash -ne $runtimeHash) {
@@ -252,14 +252,9 @@ Write-Host "Backup em: $backup"
 Write-Host 'Reinicie o computador se for a primeira vez que executa o Envy-Diamond.'
 
 
-# ── Dynamic Pacing ASI Plugin ───────────────────────────────────────────────
-$pluginsDir = Join-Path $game 'OptiScaler\plugins'
-if (-not (Test-Path $pluginsDir)) { New-Item -ItemType Directory -Path $pluginsDir | Out-Null }
-# Install as -loadlate so it injects 30 seconds later, ensuring dlssnr_amd_pass DLLs are in memory to be patched!
-Install-File (Join-Path $PSScriptRoot 'EnvyDynamicPacing.asi') (Join-Path 'OptiScaler\plugins' 'EnvyDynamicPacing-loadlate.asi')
-
-# Ensure Plugins are enabled in INI
-$iniContent = Set-IniValue $iniContent 'Plugins' 'LoadAsiPlugins' 'true'
+# Configure AMD-NR Model Interleave for Real-Time performance
+$iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdInterleave' '0'
+$iniContent = Set-IniValue $iniContent 'Spoofing' 'Dxgi' 'true'
 $iniContent | Set-Content $iniDest
 
 # ── TDR Registry Configuration & Backup ────────────────────────────────────
@@ -334,8 +329,8 @@ if ($needsTdrUpdate) {
     Write-Host "TDR settings verified: Optimal for DLSS-NR workloads" -ForegroundColor Green
 }
 
-# Set GPU generation as a user environment variable for ASI plugin to read via GetEnvironmentVariableW
-[Environment]::SetEnvironmentVariable("ENY_GPU_GEN", "RDNA$rdnaGen", "User")
-Write-Host "Environment variable ENY_GPU_GEN=RDNA$rdnaGen set for User."
 
-Write-Host 'Dynamic Pacing ASI plugin installed. Verify TDR settings above for optimal performance.'
+Write-Host 'AMD-NR runtime configured. Verify TDR settings above for optimal performance.'
+
+
+

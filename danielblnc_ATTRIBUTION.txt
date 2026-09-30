@@ -1,0 +1,21 @@
+danielblnc runtime - attribution
+
+The runtime DLLs in this zip (dlssnr_amd_pass1..3.dll, danielblnc v0.5.0) are
+"DLSS-NR on AMD" by Daniel Blanco (danielblnc):
+https://github.com/danielblnc/DLSS-NR-on-AMD
+
+Copyright (c) 2026 Daniel Blanco. All rights reserved.
+
+They are shipped unmodified, with the author's permission, which he gave to
+AMDNR on 2026-09-25 on the condition of prominent attribution. The three files
+are identical copies of his v0.5.0 runtime (38,703,616 bytes each, SHA256
+cddfb09e019347957bf7b96c95c0e900e8d3062dfaed697a8a96b0a039aec31a), taken from his public v0.5.0 release (installer SHA256
+39df94a0c94b8194135cb2f85aedcc9225a7a62a66fb8adee600729fceab145e); there are three so that each
+Neural pass has its own. They are not covered by AMDNR's GPL-3.0 licence or by
+AMDNR_NOTICE.txt, and all rights stay with the author. Do not repack them as
+your own. Get them from the author's releases page or from AMDNR's release.
+
+dlssnr_on_amd_weights.bin is generated from NVIDIA's nvngx_dlssnr.dll
+(310.8.0.0) by the author's tool. NVIDIA's rights apply to it.
+
+Needs AMDNR 0.3.4.2 or newer. Older AMDNR builds refuse the 0.5.0 runtime.
