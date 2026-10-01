@@ -74,7 +74,7 @@ function Install-File([string]$source,[string]$relative) {
 
 Write-Host "Installing AMD-NR wrapper as $proxyName..."
 Install-File (Join-Path "$tempDir\amdnr" 'OptiScaler.dll') $proxyName
-foreach($name in @('OptiScaler.ini','dlssnr_amd_pass1.dll','dlssnr_amd_pass2.dll','dlssnr_amd_pass3.dll','dlssnr_on_amd_weights.bin')) {
+foreach($name in @('OptiScaler.ini','dlssnr_amd_pass1.dll','dlssnr_amd_pass2.dll','dlssnr_amd_pass3.dll','dlssnr_on_amd_weights.bin','LmxxfNrRuntime.dll','LmxxfNrRuntime.pak')) {
     $src = if (Test-Path (Join-Path "$tempDir\amdnr" $name)) { Join-Path "$tempDir\amdnr" $name } else { Join-Path "$tempDir\runtime" $name }
     Install-File $src $name
 }
@@ -173,3 +173,4 @@ Write-Host "Backup em: $backup"
 if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue }
 
 Write-Host 'AMD-NR runtime configured successfully from remote sources.'
+

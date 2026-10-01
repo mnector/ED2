@@ -24,6 +24,8 @@ $filesToRemove = @(
     "dlssnr_amd_pass2.dll",
     "dlssnr_amd_pass3.dll",
     "dlssnr_on_amd_weights.bin",
+    "LmxxfNrRuntime.dll",
+    "LmxxfNrRuntime.pak",
     "danielblnc_ATTRIBUTION.txt",
     "nvngx.dll"
 )
@@ -43,3 +45,4 @@ if (Test-Path $optiDir) {
 }
 
 Write-Host "Uninstallation complete."
+
