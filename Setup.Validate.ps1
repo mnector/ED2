@@ -74,17 +74,12 @@ $nvngxMsg = if ($hasRogueNvngx) { "Rogue OptiScaler nvngx.dll detected! Delete i
 Check-Result -Name "No rogue nvngx.dll proxy" -Passed (-not $hasRogueNvngx) -Message $nvngxMsg
 Write-Host ""
 
-Write-Host "2. TDR Registry Settings" -ForegroundColor Cyan
-$tdrPath = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
-$tdrKeys = @("TdrDelay", "TdrDdiDelay", "TdrLimitCount", "TdrLimitTime")
-
-foreach ($key in $tdrKeys) {
-    try {
-        $value = Get-ItemProperty -Path $tdrPath -Name $key -ErrorAction Stop | Select-Object -ExpandProperty $key
-        Check-Result -Name $key -Passed ($value -ne $null) -Message "Value: $value"
-    } catch {
-        Check-Result -Name $key -Passed $false -Message "Not configured (default: may cause timeouts)"
-    }
+Write-Host "2. Proxy & ReShade Status" -ForegroundColor Cyan
+$proxies = @("dxgi.dll", "winmm.dll", "version.dll") | Where-Object { Test-Path "$GameDir\$_" }
+if ($proxies) {
+    Check-Result -Name "Active Proxy" -Passed $true -Message ($proxies -join ", ")
+} else {
+    Check-Result -Name "Active Proxy" -Passed $false -Message "No proxy found"
 }
 Write-Host ""
 
@@ -127,8 +122,8 @@ $backupFolders = Get-ChildItem $GameDir -Directory | Where-Object { $_.Name -mat
 if ($backupFolders) {
     $latestBackup = $backupFolders | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     Check-Result -Name "Backup folder" -Passed $true -Message $latestBackup.Name
-    $tdrBackup = Test-Path "$($latestBackup.FullName)\tdr_backup.json"
-    Check-Result -Name "TDR backup" -Passed $tdrBackup
+    $manifest = Test-Path "$($latestBackup.FullName)\manifest.json"
+    Check-Result -Name "Backup manifest (manifest.json)" -Passed $manifest
 } else {
     Check-Result -Name "Backup folder" -Passed $false -Message "Not found"
 }

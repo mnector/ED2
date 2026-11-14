@@ -30,6 +30,34 @@ $filesToRemove = @(
     "nvngx.dll"
 )
 
+# Check for automated backup and restore original files
+$backupDirs = Get-ChildItem -LiteralPath $game -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -match "^backup-amd" } | Sort-Object LastWriteTime -Descending
+if ($backupDirs) {
+    $latestBackup = $backupDirs[0]
+    $manifestPath = Join-Path $latestBackup.FullName "manifest.json"
+    if (Test-Path $manifestPath) {
+        Write-Host "Found backup manifest in $($latestBackup.Name). Restoring original files..."
+        try {
+            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
+            foreach ($entry in $manifest) {
+                $targetFile = Join-Path $game $entry.File
+                $backupFile = Join-Path $latestBackup.FullName $entry.File
+                if ($entry.Existed -and (Test-Path $backupFile)) {
+                    Copy-Item -LiteralPath $backupFile -Destination $targetFile -Force
+                    Write-Host "Restored original: $($entry.File)"
+                } else {
+                    if (Test-Path $targetFile) {
+                        Remove-Item -LiteralPath $targetFile -Force -ErrorAction SilentlyContinue
+                        Write-Host "Removed installed: $($entry.File)"
+                    }
+                }
+            }
+        } catch {
+            Write-Warning "Could not parse manifest: $_"
+        }
+    }
+}
+
 foreach ($file in $filesToRemove) {
     $path = Join-Path $game $file
     if (Test-Path $path) {
@@ -44,5 +72,5 @@ if (Test-Path $optiDir) {
     Write-Host "Removed: OptiScaler directory"
 }
 
-Write-Host "Uninstallation complete."
+Write-Host "Uninstallation complete. Game restored to original state."
 

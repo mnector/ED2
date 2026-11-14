@@ -11,46 +11,86 @@ $running=Get-Process -ErrorAction SilentlyContinue | Where-Object {try {$_.Path 
 if ($running) {throw 'Feche o jogo antes de instalar.'}
 
 # 1. Download AMD-NR and DLSS-NR-on-AMD
-Write-Host "Fetching latest releases from GitHub..."
 $tempDir = Join-Path $env:TEMP "ED2_Payload"
 if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 
+$downloadSuccess = $false
 try {
+    Write-Host "Fetching latest releases from GitHub..."
     # 3zwr1/AMD-NR---OptiScaler latest release
     $releaseUrl = "https://api.github.com/repos/3zwr1/AMD-NR---OptiScaler/releases/latest"
     $release = Invoke-RestMethod -Uri $releaseUrl
     $amdnrAsset = $release.assets | Where-Object { $_.name -match "AMDNR-v.*\.zip" } | Select-Object -First 1
     $runtimeAsset = $release.assets | Where-Object { $_.name -match ".*-Runtime\.zip" } | Select-Object -First 1
     
-    if (-not $amdnrAsset -or -not $runtimeAsset) { throw "Could not find release assets on GitHub." }
-    
-    Write-Host "Downloading $($amdnrAsset.name)..."
-    Invoke-WebRequest -Uri $amdnrAsset.browser_download_url -OutFile "$tempDir\amdnr.zip"
-    Write-Host "Downloading $($runtimeAsset.name)..."
-    Invoke-WebRequest -Uri $runtimeAsset.browser_download_url -OutFile "$tempDir\runtime.zip"
+    $tag = $release.tag_name -replace '^Alpha|^v',''
+    $localMatched = Get-ChildItem -Path $PSScriptRoot -Filter "*$tag*" -Directory | Select-Object -First 1
+
+    if ($localMatched) {
+        Write-Host "Using up-to-date local payload from $($localMatched.Name)..."
+        New-Item -ItemType Directory -Path "$tempDir\amdnr" -Force | Out-Null
+        Copy-Item -Path "$($localMatched.FullName)\*" -Destination "$tempDir\amdnr" -Recurse -Force
+        $downloadSuccess = $true
+    } elseif ($amdnrAsset) {
+        Write-Host "Downloading $($amdnrAsset.name)..."
+        Invoke-WebRequest -Uri $amdnrAsset.browser_download_url -OutFile "$tempDir\amdnr.zip"
+        if ($runtimeAsset) {
+            Write-Host "Downloading $($runtimeAsset.name)..."
+            Invoke-WebRequest -Uri $runtimeAsset.browser_download_url -OutFile "$tempDir\runtime.zip"
+        }
+        Write-Host "Extracting payloads..."
+        Expand-Archive -Path "$tempDir\amdnr.zip" -DestinationPath "$tempDir\amdnr" -Force
+        if (Test-Path "$tempDir\runtime.zip") {
+            Expand-Archive -Path "$tempDir\runtime.zip" -DestinationPath "$tempDir\runtime" -Force
+        }
+        $downloadSuccess = $true
+    }
 } catch {
-    throw "Failed to download required binaries: $_"
+    Write-Warning "Could not fetch online release: $_"
 }
 
-Write-Host "Extracting payloads..."
-Expand-Archive -Path "$tempDir\amdnr.zip" -DestinationPath "$tempDir\amdnr" -Force
-Expand-Archive -Path "$tempDir\runtime.zip" -DestinationPath "$tempDir\runtime" -Force
+if (-not $downloadSuccess) {
+    $localCached = Get-ChildItem -Path $PSScriptRoot -Filter "AMDNR-v*" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+    if ($localCached) {
+        Write-Host "Using cached local payload from $($localCached.Name)..."
+        New-Item -ItemType Directory -Path "$tempDir\amdnr" -Force | Out-Null
+        Copy-Item -Path "$($localCached.FullName)\*" -Destination "$tempDir\amdnr" -Recurse -Force
+    } else {
+        throw "Failed to download required binaries and no local cached payload was found."
+    }
+}
 
 $isREEngine = (Get-ChildItem -LiteralPath $game -Filter 're_chunk_*.pak' -ErrorAction SilentlyContinue).Count -gt 0 -or (Test-Path -LiteralPath (Join-Path $game 're9.exe'))
 $isNMS = (Test-Path -LiteralPath (Join-Path $game 'NMS.exe'))
-$proxies=@('dxgi.dll','winmm.dll','version.dll','winhttp.dll','wininet.dll','dbghelp.dll') | ForEach-Object {
-    $candidate=Join-Path $game $_
-    if(Test-Path -LiteralPath $candidate -PathType Leaf) {
-        $name=[IO.Path]::GetFileName($candidate)
-        $hash=(Get-FileHash -LiteralPath $candidate).Hash
-        # AMD-NR proxy hashes can vary between versions, we just check if it's NOT system
-        [pscustomobject]@{Name=$name;Path=$candidate;IsProxy=$true}
+$candidates = @('dxgi.dll','winmm.dll','version.dll','winhttp.dll','wininet.dll','dbghelp.dll')
+$existingProxies = foreach ($c in $candidates) {
+    $candidatePath = Join-Path $game $c
+    if (Test-Path -LiteralPath $candidatePath -PathType Leaf) {
+        $vInfo = (Get-Item -LiteralPath $candidatePath).VersionInfo
+        $isReShade = ($vInfo.FileDescription -match 'ReShade' -or $vInfo.ProductName -match 'ReShade' -or $vInfo.OriginalFilename -match 'ReShade')
+        $isOpti = ($vInfo.FileDescription -match 'OptiScaler' -or $vInfo.ProductName -match 'OptiScaler' -or $vInfo.OriginalFilename -match 'OptiScaler')
+        [pscustomobject]@{ Name = $c; Path = $candidatePath; IsReShade = $isReShade; IsOptiScaler = $isOpti }
     }
 }
-if ($proxies.Count -gt 1) {throw "Multiplos proxies encontrados: $($proxies.Name -join ', '). Remova-os primeiro."}
+
+$optiProxies = @($existingProxies | Where-Object { -not $_.IsReShade })
+
 if ($ProxyName -eq 'auto') {
-    $proxyName=if($proxies){$proxies[0].Name}elseif($isNMS -or $isREEngine){'version.dll'}else{'dxgi.dll'}
+    if ($optiProxies.Count -gt 1) {
+        throw "Multiplos proxies encontrados: $($optiProxies.Name -join ', '). Remova-os primeiro ou especifique -ProxyName."
+    }
+    $proxyName = if ($optiProxies) {
+        $optiProxies[0].Name
+    } elseif ($existingProxies | Where-Object { $_.IsReShade -and $_.Name -eq 'dxgi.dll' }) {
+        'winmm.dll'
+    } elseif ($isNMS -or $isREEngine) {
+        'version.dll'
+    } else {
+        'dxgi.dll'
+    }
+} else {
+    $proxyName = $ProxyName
 }
 
 $backup=Join-Path $game ('backup-amd-presr-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))
@@ -74,15 +114,17 @@ function Install-File([string]$source,[string]$relative) {
 
 Write-Host "Installing AMD-NR wrapper as $proxyName..."
 Install-File (Join-Path "$tempDir\amdnr" 'OptiScaler.dll') $proxyName
-foreach($name in @('OptiScaler.ini','dlssnr_amd_pass1.dll','dlssnr_amd_pass2.dll','dlssnr_amd_pass3.dll','dlssnr_on_amd_weights.bin','LmxxfNrRuntime.dll','LmxxfNrRuntime.pak')) {
+foreach($name in @('OptiScaler.ini','MochizukiNrRuntime.dll','dlssnr_amd_pass1.dll','dlssnr_amd_pass2.dll','dlssnr_amd_pass3.dll','dlssnr_on_amd_weights.bin','LmxxfNrRuntime.dll','LmxxfNrRuntime.pak')) {
     $src = if (Test-Path (Join-Path "$tempDir\amdnr" $name)) { Join-Path "$tempDir\amdnr" $name } else { Join-Path "$tempDir\runtime" $name }
     Install-File $src $name
 }
-$deps=Join-Path "$tempDir\amdnr" 'OptiScaler'
-if (Test-Path $deps) {
-    Get-ChildItem -LiteralPath $deps -File -Recurse | ForEach-Object {
-        $relative=$_.FullName.Substring($deps.Length+1)
-        Install-File $_.FullName (Join-Path 'OptiScaler' $relative)
+foreach ($subDir in @('OptiScaler','FSR4Fast','AMDNR-ModelB','dlssnr-amd')) {
+    $subPath = Join-Path "$tempDir\amdnr" $subDir
+    if (Test-Path $subPath) {
+        Get-ChildItem -LiteralPath $subPath -File -Recurse | ForEach-Object {
+            $relative = $_.FullName.Substring($subPath.Length + 1)
+            Install-File $_.FullName (Join-Path $subDir $relative)
+        }
     }
 }
 $records | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $backup 'manifest.json')
@@ -100,17 +142,48 @@ try {
 } catch {}
 
 function Set-IniValue($content, $section, $key, $val) {
-    $pattern = "(?m)^\[$section\][\s\S]*?(?=(?:^\[)|`$)"
-    if ($content -match $pattern) {
-        $secContent = $matches[0]
-        if ($secContent -match "(?m)^$key\s*=") {
-            $secContent = $secContent -replace "(?m)^$key\s*=.*", "$key=$val"
-        } else {
-            $secContent = $secContent.TrimEnd() + "`r`n$key=$val`r`n"
+    $nl = if ($content.Contains("`r`n")) { "`r`n" } else { "`n" }
+    $lines = $content -split "`r?`n"
+    $out = [System.Collections.Generic.List[string]]::new()
+    $escapedKey = [regex]::Escape($key)
+    $inSection = $false
+    $sectionSeen = $false
+    $keyHandled = $false
+
+    foreach ($line in $lines) {
+        if ($line -match '^\s*\[([^\]]+)\]') {
+            if ($inSection -and -not $keyHandled) {
+                $insertIdx = $out.Count
+                while ($insertIdx -gt 0 -and [string]::IsNullOrWhiteSpace($out[$insertIdx - 1])) { $insertIdx-- }
+                $out.Insert($insertIdx, "$key=$val")
+                $keyHandled = $true
+            }
+            $inSection = ($Matches[1].Trim() -ieq $section)
+            if ($inSection) { $sectionSeen = $true }
+            $out.Add($line)
+            continue
         }
-        $content = $content.Replace($matches[0], $secContent)
+        if ($inSection -and $line -match "^\s*$escapedKey\s*=") {
+            if (-not $keyHandled) {
+                $out.Add("$key=$val")
+                $keyHandled = $true
+            }
+            continue
+        }
+        $out.Add($line)
     }
-    return $content
+
+    if ($inSection -and -not $keyHandled) {
+        $insertIdx = $out.Count
+        while ($insertIdx -gt 0 -and [string]::IsNullOrWhiteSpace($out[$insertIdx - 1])) { $insertIdx-- }
+        $out.Insert($insertIdx, "$key=$val")
+    } elseif (-not $sectionSeen) {
+        if ($out.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($out[$out.Count - 1])) { $out.Add('') }
+        $out.Add("[$section]")
+        $out.Add("$key=$val")
+    }
+
+    return ($out -join $nl)
 }
 
 $iniDest = Join-Path $game 'OptiScaler.ini'
@@ -154,6 +227,7 @@ if ($isNMS) {
 }
 $isGTA = (Test-Path -LiteralPath (Join-Path $game 'GTA5.exe')) -or (Test-Path -LiteralPath (Join-Path $game 'GTA5_Enhanced.exe')) -or (Test-Path -LiteralPath (Join-Path $game 'PlayGTAV.exe'))
 if ($isGTA) {
+    $iniContent = Set-IniValue $iniContent 'Menu' 'OverlayMenu' 'true'
     $iniContent = Set-IniValue $iniContent 'Menu' 'ShortcutKey' '0x2D'
     $iniContent = Set-IniValue $iniContent 'Menu' 'MenuKey'     '0x2D'
 }
