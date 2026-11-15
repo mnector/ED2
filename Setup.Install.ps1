@@ -2,31 +2,97 @@ param(
     [Parameter(Mandatory=$true)][string]$GameDir,
     [ValidateSet('auto','dxgi.dll','winmm.dll','version.dll','winhttp.dll','wininet.dll','dbghelp.dll')]
     [string]$ProxyName='auto',
+    [ValidateSet('auto','mochizuki','daniel','lmxxf')]
+    [string]$NrBackend='auto',
+    [Alias('DanielNrFile')][string]$NrDllPath,
+    [string]$DependencyDirectory,
+    [switch]$SkipDaniel080,
     [switch]$SkipAnrFg
 )
 $ErrorActionPreference='Stop'
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+function Find-VerifiedNrDll {
+    param([string]$ExplicitPath, [string]$DepDir, [string]$GamePath, [string]$ScriptDir)
+    $acceptedHashes = @{
+        '2BC19BC09A7B89DD44F73E2AC0108FCC586E2154BDD0830F242F4F040E28789F' = '310.9.16.0'
+        'E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E' = '310.8.0.0'
+    }
+    function Test-NrCandidate([string]$Path) {
+        if (-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+        $h = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
+        return $acceptedHashes.ContainsKey($h)
+    }
+
+    if ($ExplicitPath) {
+        if (-not (Test-NrCandidate $ExplicitPath)) {
+            throw "O arquivo '$ExplicitPath' nao e um nvngx_dlssnr.dll suportado (310.9.16.0 ou 310.8.0.0 com SHA-256 verificado)."
+        }
+        return (Resolve-Path -LiteralPath $ExplicitPath).Path
+    }
+
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if ($DepDir) {
+        $candidates.Add((Join-Path $DepDir 'nvngx_dlssnr.dll'))
+        foreach ($h in $acceptedHashes.Keys) {
+            $candidates.Add((Join-Path $DepDir "$($h.ToLowerInvariant())\nvngx_dlssnr.dll"))
+        }
+    }
+    foreach ($base in @($GamePath, (Join-Path $GamePath 'AMDNR-NeuralHub-080\data'), $ScriptDir, (Join-Path $ScriptDir 'deps'), (Join-Path $ScriptDir 'cache'))) {
+        if ($base) {
+            $candidates.Add((Join-Path $base 'nvngx_dlssnr.dll'))
+            $candidates.Add((Join-Path $base 'nvngx_dlssnr.dll.bak'))
+        }
+    }
+    foreach ($c in $candidates) {
+        if (Test-NrCandidate $c) { return $c }
+    }
+    $amdnrLocal = Join-Path $env:LOCALAPPDATA 'AMDNR'
+    if (Test-Path -LiteralPath $amdnrLocal -PathType Container) {
+        $found = Get-ChildItem -LiteralPath $amdnrLocal -Filter 'nvngx_dlssnr.dll' -File -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { Test-NrCandidate $_.FullName } | Select-Object -First 1
+        if ($found) { return $found.FullName }
+    }
+    return $null
+}
 
 $game=(Resolve-Path -LiteralPath $GameDir).Path
 if (!(Test-Path -LiteralPath $game -PathType Container)) {throw 'Informe a pasta do executavel do jogo.'}
 $running=Get-Process -ErrorAction SilentlyContinue | Where-Object {try {$_.Path -and ([IO.Path]::GetDirectoryName($_.Path) -eq $game)} catch {$false}}
 if ($running) {throw 'Feche o jogo antes de instalar.'}
 
-# 1. Download AMD-NR and DLSS-NR-on-AMD
+# 1. Download AMD-NR, Mochi component, and optional Daniel 0.8.0 helper from GitHub
 $tempDir = Join-Path $env:TEMP "ED2_Payload"
 if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
 New-Item -ItemType Directory -Path $tempDir | Out-Null
 
 $downloadSuccess = $false
+$danielAsset = $null
 try {
     Write-Host "Fetching latest releases from GitHub..."
-    # 3zwr1/AMD-NR---OptiScaler latest release
-    $releaseUrl = "https://api.github.com/repos/3zwr1/AMD-NR---OptiScaler/releases/latest"
-    $release = Invoke-RestMethod -Uri $releaseUrl
-    $amdnrAsset = $release.assets | Where-Object { $_.name -match "AMDNR-v.*\.zip" } | Select-Object -First 1
-    $runtimeAsset = $release.assets | Where-Object { $_.name -match ".*-Runtime\.zip" } | Select-Object -First 1
-    
+    $ghHeaders = @{ 'User-Agent' = 'ED2-Installer' }
+    $releasesUrl = "https://api.github.com/repos/3zwr1/AMD-NR---OptiScaler/releases?per_page=100"
+    $rawReleases = Invoke-RestMethod -Uri $releasesUrl -Headers $ghHeaders
+    $releases = @($rawReleases | Where-Object { -not $_.draft })
+    $release = $releases | Where-Object { $_.assets | Where-Object { $_.name -match '^AMDNR-v.*\.zip$' } } | Select-Object -First 1
+    if (-not $release) {
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/3zwr1/AMD-NR---OptiScaler/releases/latest" -Headers $ghHeaders
+        $releases = @($release)
+    }
+
+    $amdnrAsset = $release.assets | Where-Object { $_.name -match '^AMDNR-v.*\.zip$' } | Select-Object -First 1
+    $mochiAsset = $release.assets | Where-Object { $_.name -match '^AMDNR-Mochi-.*-component\.zip$' } | Select-Object -First 1
+    $runtimeAsset = $release.assets | Where-Object { $_.name -match '.*-Runtime\.zip$' } | Select-Object -First 1
+    $danielRel = $releases | Where-Object { $_.assets | Where-Object { $_.name -match '^Daniel-0\.8\.0.*\.zip$' } } | Select-Object -First 1
+    if ($danielRel) {
+        $danielAsset = $danielRel.assets | Where-Object { $_.name -match '^Daniel-0\.8\.0.*\.zip$' } | Select-Object -First 1
+    }
+
     $tag = $release.tag_name -replace '^Alpha|^v',''
-    $localMatched = Get-ChildItem -Path $PSScriptRoot -Filter "*$tag*" -Directory | Select-Object -First 1
+    $localMatched = if ($tag) {
+        Get-ChildItem -Path $PSScriptRoot -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -ieq "AMDNR-v$tag" } | Select-Object -First 1
+    }
 
     if ($localMatched) {
         Write-Host "Using up-to-date local payload from $($localMatched.Name)..."
@@ -34,14 +100,21 @@ try {
         Copy-Item -Path "$($localMatched.FullName)\*" -Destination "$tempDir\amdnr" -Recurse -Force
         $downloadSuccess = $true
     } elseif ($amdnrAsset) {
-        Write-Host "Downloading $($amdnrAsset.name)..."
-        Invoke-WebRequest -Uri $amdnrAsset.browser_download_url -OutFile "$tempDir\amdnr.zip"
+        Write-Host "Selected AMD-NR release: $($release.tag_name) ($($amdnrAsset.name))"
+        Invoke-WebRequest -UseBasicParsing -Uri $amdnrAsset.browser_download_url -OutFile "$tempDir\amdnr.zip"
+        if ($mochiAsset) {
+            Write-Host "Downloading $($mochiAsset.name)..."
+            Invoke-WebRequest -UseBasicParsing -Uri $mochiAsset.browser_download_url -OutFile "$tempDir\mochi.zip"
+        }
         if ($runtimeAsset) {
             Write-Host "Downloading $($runtimeAsset.name)..."
-            Invoke-WebRequest -Uri $runtimeAsset.browser_download_url -OutFile "$tempDir\runtime.zip"
+            Invoke-WebRequest -UseBasicParsing -Uri $runtimeAsset.browser_download_url -OutFile "$tempDir\runtime.zip"
         }
         Write-Host "Extracting payloads..."
         Expand-Archive -Path "$tempDir\amdnr.zip" -DestinationPath "$tempDir\amdnr" -Force
+        if (Test-Path "$tempDir\mochi.zip") {
+            Expand-Archive -Path "$tempDir\mochi.zip" -DestinationPath "$tempDir\amdnr" -Force
+        }
         if (Test-Path "$tempDir\runtime.zip") {
             Expand-Archive -Path "$tempDir\runtime.zip" -DestinationPath "$tempDir\runtime" -Force
         }
@@ -114,12 +187,14 @@ function Install-File([string]$source,[string]$relative) {
 }
 
 Write-Host "Installing AMD-NR wrapper as $proxyName..."
-Install-File (Join-Path "$tempDir\amdnr" 'OptiScaler.dll') $proxyName
-foreach($name in @('OptiScaler.ini','MochizukiNrRuntime.dll','dlssnr_amd_pass1.dll','dlssnr_amd_pass2.dll','dlssnr_amd_pass3.dll','dlssnr_on_amd_weights.bin','LmxxfNrRuntime.dll','LmxxfNrRuntime.pak')) {
+$optiSrc = Get-ChildItem -LiteralPath "$tempDir\amdnr" -Filter 'OptiScaler.dll' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $optiSrc) { throw "OptiScaler.dll / Optiscaler.dll not found in AMDNR payload." }
+Install-File $optiSrc.FullName $proxyName
+foreach($name in @('OptiScaler.ini','MochizukiNrRuntime.dll','dlssnr_amd_pass1.dll','dlssnr_amd_pass2.dll','dlssnr_amd_pass3.dll','dlssnr_on_amd_weights.bin','LmxxfNrRuntime.dll','LmxxfNrRuntime.pak','MOCHI-README.txt','MOCHI-SOURCE.txt','SOURCE-AVAILABILITY.txt')) {
     $src = if (Test-Path (Join-Path "$tempDir\amdnr" $name)) { Join-Path "$tempDir\amdnr" $name } else { Join-Path "$tempDir\runtime" $name }
     Install-File $src $name
 }
-foreach ($subDir in @('OptiScaler','FSR4Fast','AMDNR-ModelB','dlssnr-amd')) {
+foreach ($subDir in @('OptiScaler','FSR4Fast','AMDNR-ModelB','dlssnr-amd','model-tools','Licenses')) {
     $subPath = Join-Path "$tempDir\amdnr" $subDir
     if (Test-Path $subPath) {
         Get-ChildItem -LiteralPath $subPath -File -Recurse | ForEach-Object {
@@ -173,6 +248,80 @@ if (-not $SkipAnrFg) {
     } catch {
         Write-Warning "Could not install optional ANR FG addon: $_"
     }
+}
+
+# 2. Optional NR Backends: Mochizuki weights & Daniel 0.8.0 (NeuralHub)
+$verifiedNrDll = Find-VerifiedNrDll -ExplicitPath $NrDllPath -DepDir $DependencyDirectory -GamePath $game -ScriptDir $PSScriptRoot
+
+$mochiWeightsSmall = Join-Path $game 'dlssnr-amd\dlssnr-small.bin'
+$mochiWeightsAlt = Join-Path $game 'dlssnr-amd\dlssnr.bin'
+if (-not (Test-Path -LiteralPath $mochiWeightsSmall -PathType Leaf) -and -not (Test-Path -LiteralPath $mochiWeightsAlt -PathType Leaf)) {
+    $extractor = Join-Path $game 'model-tools\dlssnr_extract_model.exe'
+    if ($verifiedNrDll -and (Test-Path -LiteralPath $extractor -PathType Leaf)) {
+        Write-Host "Extracting Mochizuki NR weights from $verifiedNrDll..."
+        $mochiOut = Join-Path $tempDir 'mochi_weights'
+        New-Item -ItemType Directory -Path $mochiOut -Force | Out-Null
+        & $extractor $verifiedNrDll $mochiOut
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "dlssnr_extract_model.exe returned exit code $LASTEXITCODE."
+        } else {
+            Get-ChildItem -LiteralPath $mochiOut -File -Recurse | ForEach-Object {
+                $rel = $_.FullName.Substring($mochiOut.Length + 1)
+                Install-File $_.FullName (Join-Path 'dlssnr-amd' $rel)
+            }
+        }
+    }
+}
+$mochiReady = (Test-Path -LiteralPath (Join-Path $game 'MochizukiNrRuntime.dll') -PathType Leaf) -and
+              ((Test-Path -LiteralPath $mochiWeightsSmall -PathType Leaf) -or (Test-Path -LiteralPath $mochiWeightsAlt -PathType Leaf))
+
+$danielHostDll = Join-Path $game 'AMDNR-NeuralHub-080\neuralhub_host.dll'
+$danielNrData  = Join-Path $game 'AMDNR-NeuralHub-080\data\nvngx_dlssnr.dll'
+$daniel080Ready = (Test-Path -LiteralPath $danielHostDll -PathType Leaf) -and (Test-Path -LiteralPath $danielNrData -PathType Leaf)
+
+if (-not $SkipDaniel080 -and -not $daniel080Ready) {
+    if ($verifiedNrDll -and $danielAsset) {
+        try {
+            Write-Host "Downloading $($danielAsset.name) for Daniel 0.8.0 preparation..."
+            $danielZip = Join-Path $tempDir 'daniel080.zip'
+            Invoke-WebRequest -UseBasicParsing -Uri $danielAsset.browser_download_url -OutFile $danielZip
+            $danielExtract = Join-Path $tempDir 'daniel080'
+            Expand-Archive -Path $danielZip -DestinationPath $danielExtract -Force
+            $prepScript = Join-Path $danielExtract 'Prepare-Daniel080.ps1'
+            $prepOut = Join-Path $tempDir 'daniel080_out'
+            New-Item -ItemType Directory -Path $prepOut -Force | Out-Null
+
+            $prepArgs = @{
+                NrFile          = $verifiedNrDll
+                OutputDirectory = $prepOut
+            }
+            if ($DependencyDirectory -and (Test-Path -LiteralPath $DependencyDirectory -PathType Container)) {
+                $prepArgs['DependencyDirectory'] = $DependencyDirectory
+            }
+            & $prepScript @prepArgs
+
+            $preparedHub = Join-Path $prepOut 'AMDNR-NeuralHub-080'
+            if (Test-Path -LiteralPath $preparedHub -PathType Container) {
+                Get-ChildItem -LiteralPath $preparedHub -File -Recurse | ForEach-Object {
+                    $rel = $_.FullName.Substring($preparedHub.Length + 1)
+                    Install-File $_.FullName (Join-Path 'AMDNR-NeuralHub-080' $rel)
+                }
+                $daniel080Ready = (Test-Path -LiteralPath $danielHostDll -PathType Leaf) -and (Test-Path -LiteralPath $danielNrData -PathType Leaf)
+                if ($daniel080Ready) {
+                    Write-Host "Daniel 0.8.0 (AMDNR-NeuralHub-080) prepared and installed."
+                }
+            }
+        } catch {
+            if ($NrBackend -eq 'daniel') { throw }
+            Write-Warning "Could not prepare optional Daniel 0.8.0 runtime: $_"
+        }
+    } elseif ($NrBackend -eq 'daniel') {
+        throw "Daniel 0.8.0 requer nvngx_dlssnr.dll verificado (versao 310.9.16.0 ou 310.8.0.0) via -NrDllPath ou -DependencyDirectory. Veja https://github.com/danielblnc/DLSS-NR-on-AMD/releases"
+    }
+}
+
+if ($NrBackend -eq 'mochizuki' -and -not $mochiReady) {
+    Write-Warning "MochizukiNrRuntime.dll instalado, mas os pesos extraidos (dlssnr-amd\dlssnr-small.bin) ainda exigem nvngx_dlssnr.dll (310.9.16.0 ou 310.8.0.0) via -NrDllPath ou AMDNR Launcher."
 }
 
 $records | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $backup 'manifest.json')
@@ -286,11 +435,35 @@ if ($isGTA) {
 }
 $iniContent = Set-IniValue $iniContent 'Framerate' 'FramerateLimit' '0.0'
 
+$effectiveBackend = if ($NrBackend -ne 'auto') {
+    $NrBackend
+} elseif ($mochiReady) {
+    'mochizuki'
+} elseif ($daniel080Ready) {
+    'daniel'
+} elseif (Test-Path -LiteralPath (Join-Path $game 'dlssnr_amd_pass1.dll') -PathType Leaf) {
+    'daniel'
+} else {
+    'lmxxf'
+}
+
+$iniContent = Set-IniValue $iniContent 'DlssNr' 'NrBackend' $effectiveBackend
+if ($daniel080Ready) {
+    $iniContent = Set-IniValue $iniContent 'DLSS' 'ForceDlssSr' 'true'
+    $iniContent = Set-IniValue $iniContent 'DLSS' 'NeuralHubEnabled' 'true'
+    $iniContent = Set-IniValue $iniContent 'DLSS' 'NeuralHubNrEnabled' $(if ($effectiveBackend -eq 'daniel') { 'true' } else { 'false' })
+} else {
+    # Prevent NHUB080 startup AppHangB1 when AMDNR-NeuralHub-080 is absent
+    $iniContent = Set-IniValue $iniContent 'DLSS' 'ForceDlssSr' 'auto'
+    $iniContent = Set-IniValue $iniContent 'DLSS' 'NeuralHubEnabled' 'false'
+    $iniContent = Set-IniValue $iniContent 'DLSS' 'NeuralHubNrEnabled' 'false'
+}
+
 # Configure AMD-NR Model Interleave for Real-Time performance
 $iniContent = Set-IniValue $iniContent 'DlssNr' 'AmdInterleave' '0'
 $iniContent = Set-IniValue $iniContent 'Spoofing' 'Dxgi' 'true'
 $iniContent | Set-Content $iniDest
-Write-Host "OptiScaler.ini tuned for RDNA $rdnaGen."
+Write-Host "OptiScaler.ini tuned for RDNA $rdnaGen (NrBackend=$effectiveBackend, Daniel080=$daniel080Ready, MochiWeights=$mochiReady)."
 
 Write-Host "Instalado em: $game"
 Write-Host "Proxy: $proxyName"

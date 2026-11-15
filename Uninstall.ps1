@@ -26,6 +26,10 @@ $filesToRemove = @(
     "dlssnr_on_amd_weights.bin",
     "LmxxfNrRuntime.dll",
     "LmxxfNrRuntime.pak",
+    "MochizukiNrRuntime.dll",
+    "MOCHI-README.txt",
+    "MOCHI-SOURCE.txt",
+    "SOURCE-AVAILABILITY.txt",
     "danielblnc_ATTRIBUTION.txt",
     "nvngx.dll"
 )
@@ -66,10 +70,12 @@ foreach ($file in $filesToRemove) {
     }
 }
 
-$optiDir = Join-Path $game "OptiScaler"
-if (Test-Path $optiDir) {
-    Remove-Item -Path $optiDir -Recurse -Force -ErrorAction SilentlyContinue
-    Write-Host "Removed: OptiScaler directory"
+foreach ($dirName in @('OptiScaler','FSR4Fast','AMDNR-ModelB','AMDNR-NeuralHub-080','dlssnr-amd','model-tools','Licenses')) {
+    $dirPath = Join-Path $game $dirName
+    if (Test-Path $dirPath) {
+        Remove-Item -Path $dirPath -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "Removed: $dirName directory"
+    }
 }
 
 Write-Host "Uninstallation complete. Game restored to original state."
