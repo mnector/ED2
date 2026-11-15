@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$GameDir,
     [ValidateSet('auto','dxgi.dll','winmm.dll','version.dll','winhttp.dll','wininet.dll','dbghelp.dll')]
-    [string]$ProxyName='auto'
+    [string]$ProxyName='auto',
+    [switch]$SkipAnrFg
 )
 $ErrorActionPreference='Stop'
 
@@ -127,6 +128,53 @@ foreach ($subDir in @('OptiScaler','FSR4Fast','AMDNR-ModelB','dlssnr-amd')) {
         }
     }
 }
+
+$anrFgInstalled = $false
+if (-not $SkipAnrFg) {
+    try {
+        Write-Host "Fetching latest Apex Neural Rendering (ANR FG) addon from GitHub..."
+        $anrRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/apex-compute/ANR/releases/latest"
+        $anrAsset = $anrRelease.assets | Where-Object { $_.name -match '^anr-fg-.*-addon\.zip$' } | Select-Object -First 1
+        if ($anrAsset) {
+            $anrZip = Join-Path $tempDir 'anr_addon.zip'
+            Write-Host "Downloading $($anrAsset.name)..."
+            Invoke-WebRequest -Uri $anrAsset.browser_download_url -OutFile $anrZip
+
+            $shaAsset = $anrRelease.assets | Where-Object { $_.name -eq 'SHA256SUMS.txt' } | Select-Object -First 1
+            if ($shaAsset) {
+                $shaResp = Invoke-WebRequest -Uri $shaAsset.browser_download_url -UseBasicParsing
+                $shaText = if ($shaResp.Content -is [byte[]]) { [System.Text.Encoding]::UTF8.GetString($shaResp.Content) } else { [string]$shaResp.Content }
+                $expectedLine = ($shaText -split "`r?`n") | Where-Object { $_ -match [regex]::Escape($anrAsset.name) } | Select-Object -First 1
+                if ($expectedLine -and ($expectedLine -match '^([0-9a-fA-F]{64})\s+')) {
+                    $expectedHash = $Matches[1].ToUpperInvariant()
+                    $actualHash = (Get-FileHash -LiteralPath $anrZip -Algorithm SHA256).Hash.ToUpperInvariant()
+                    if ($actualHash -ne $expectedHash) {
+                        throw "SHA-256 mismatch for $($anrAsset.name): expected $expectedHash, got $actualHash"
+                    }
+                    Write-Host "Verified ANR FG SHA-256 ($($anrRelease.tag_name))."
+                }
+            }
+
+            $anrExtract = Join-Path $tempDir 'anr_addon'
+            Expand-Archive -Path $anrZip -DestinationPath $anrExtract -Force
+            $anrSrc = Join-Path $anrExtract 'Apex Neural Rendering FG'
+            if (Test-Path -LiteralPath $anrSrc -PathType Container) {
+                $existingNrFgIni = Join-Path $game 'OptiScaler\custom\Apex Neural Rendering FG\dlssg\nr_fg.ini'
+                $preserveNrFgIni = Test-Path -LiteralPath $existingNrFgIni -PathType Leaf
+                Get-ChildItem -LiteralPath $anrSrc -File -Recurse | ForEach-Object {
+                    $rel = $_.FullName.Substring($anrSrc.Length + 1)
+                    if ($preserveNrFgIni -and ($rel -ieq 'dlssg\nr_fg.ini')) { return }
+                    Install-File $_.FullName (Join-Path 'OptiScaler\custom\Apex Neural Rendering FG' $rel)
+                }
+                $anrFgInstalled = $true
+                Write-Host "Installed ANR FG ($($anrRelease.tag_name)) to OptiScaler\custom\Apex Neural Rendering FG."
+            }
+        }
+    } catch {
+        Write-Warning "Could not install optional ANR FG addon: $_"
+    }
+}
+
 $records | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $backup 'manifest.json')
 
 # Identify GPU
@@ -195,6 +243,11 @@ $iniContent = Set-IniValue $iniContent 'FrameGen' 'ModifyBufferState' 'true'
 $iniContent = Set-IniValue $iniContent 'FrameGen' 'ModifySCIndex'     'true'
 $iniContent = Set-IniValue $iniContent 'FrameGen' 'SkipReset'         'true'
 $iniContent = Set-IniValue $iniContent 'Inputs'   'SkipReset'         'true'
+
+if ($anrFgInstalled -and -not $isREEngine) {
+    $iniContent = Set-IniValue $iniContent 'FrameGen' 'FGInput'            'nvngxfg'
+    $iniContent = Set-IniValue $iniContent 'FrameGen' 'FGNvngxReplacement' 'Apex Neural Rendering FG'
+}
 
 if ($isUE) {
     $iniContent = Set-IniValue $iniContent 'Hotfix' 'ColorResourceBarrier'        '4'

@@ -19,16 +19,17 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 
 ---
 
-## 🚀 What's New in v1.0.5+ (Online Installer, R22+ Support & Clean Architecture)
+## 🚀 What's New in v1.0.5+ (Online Installer, ANR FG Included & R22+ Support)
 
-- **⚖️ Legal & License Compliance:** ED2 is 100% compliant and respects the licensing of third-party developers. It does not bundle copyrighted binaries.
-- **🌐 Online Automated Installer (with Local Fallback):** `Setup.Install.ps1` automatically fetches the latest official releases from **[3zwr1/AMD-NR---OptiScaler](https://github.com/3zwr1/AMD-NR---OptiScaler)** (GPL-3.0) and **[danielblnc/DLSS-NR-on-AMD](https://github.com/danielblnc/DLSS-NR-on-AMD)** directly from GitHub at runtime (and falls back cleanly to a local `AMDNR-v*` folder if GitHub is unreachable).
+- **⚡ Apex Neural Rendering (`ANR FG`) Included Out-of-the-Box:** `Setup.Install.ps1` now automatically fetches the latest official **[apex-compute/ANR](https://github.com/apex-compute/ANR)** Frame Generation addon (`anr-fg-*-addon.zip`), verifies its **SHA-256** checksum against `SHA256SUMS.txt`, installs it under `OptiScaler\custom\Apex Neural Rendering FG`, and sets `[FrameGen] FGInput=nvngxfg` & `FGNvngxReplacement=Apex Neural Rendering FG` so you get **DLSS 5 visuals (AMD-NR)** + **Vulkan neural Frame Generation (ANR FG)** in one click (verified on RDNA 4 in *GTA V Enhanced*; pass `-SkipAnrFg` if you want to opt out, and RE Engine keeps RTX 3090 isolation).
+- **⚖️ Legal & License Compliance:** ED2 is 100% compliant and respects the licensing of third-party developers. It does not bundle copyrighted or upstream binaries in this repository.
+- **🌐 Online Automated Installer (with Local Fallback):** `Setup.Install.ps1` fetches the latest official releases from **[3zwr1/AMD-NR---OptiScaler](https://github.com/3zwr1/AMD-NR---OptiScaler)** (GPL-3.0), **[danielblnc/DLSS-NR-on-AMD](https://github.com/danielblnc/DLSS-NR-on-AMD)** (All Rights Reserved), and **[apex-compute/ANR](https://github.com/apex-compute/ANR)** directly from GitHub at runtime (with local fallback to cached `AMDNR-v*` folders if GitHub is unreachable).
 - **🧠 Full AMD-NR R22+ Runtime Deployment:** Installs `MochizukiNrRuntime.dll`, `dlssnr-amd/`, `FSR4Fast/`, `AMDNR-ModelB/`, `LmxxfNrRuntime.*`, and `dlssnr_amd_pass1..3.dll` alongside `OptiScaler`.
 - **📝 Clean Line-by-Line INI Updater (`Set-IniValue`):** Replaced legacy regex INI edits with a line-by-line parser that updates keys in place without duplicates, preventing trailing `= auto` entries from overriding `[Spoofing] Dxgi = true`, `[FrameGen] SkipReset = true`, or `[Menu] OverlayMenu = true`.
 - **🛡️ Zero Registry Modifications:** Invasive Windows TDR registry changes have been completely eliminated. No system restarts required, zero OS-level footprint.
 - **🎨 Smart ReShade Coexistence:** Automatically detects existing ReShade proxies (such as `dxgi.dll`) and seamlessly assigns alternative proxy chains (`winmm.dll` or `version.dll`) so you can run ReShade and ED2 together without crashes.
 - **📦 Non-Destructive Backup & 1-Click Restore:** Every installation creates a timestamped backup with `manifest.json` recording original file hashes. Run `Uninstall.ps1` at any time to restore your game to its exact original state.
-- **🤝 Proper Attribution:** Full credit remains with Daniel Blanco and 3zwr1 for the core neural rendering technology. ED2 acts strictly as an automated modding tool and configuration wrapper.
+- **🤝 Proper Attribution:** Full credit and gratitude belong to **3zwr1**, **Daniel Blanco (`danielblnc`)**, **Apex Compute (`ANR`)**, **Kien (`lmxxf`)**, **mochizuki0323**, and the **OptiScaler** contributors (see [Credits & Upstream Licenses](#-credits-acknowledgments--upstream-licenses)). ED2 acts strictly as an automated installer and configuration wrapper.
 
 ---
 
@@ -74,41 +75,40 @@ Envy-Diamond-2 unlocks the true power of DLSS and OptiScaler features on AMD har
 
 ## ⚡ Features
 
-* 🚀 **AMD Neural Rendering Support:** Experience high-end upscaling paths natively adapted for AMD architecture via HIP.
-* 🔮 **Universal DLSS-to-DLSS 5 Pipeline:** Intercepts DLSS inputs in any DirectX 12 game, tunnels them through FSR 3.1 (`ffx`), and processes them through neural reconstruction layers (`DlssNr` + `AmdLook`) to output a next-generation "DLSS 5" appearance on AMD RDNA GPUs.
-* 🛡️ **The Digital Bottomless Pit (v5.0.0):** Advanced memory-patching ASI plugin that completely cures frame-drops, eliminates internal 16ms timeouts, suppresses false history resets, and forces neural reconstruction continuity even under severe GPU loads.
-* 🧠 **GPU-Aware Auto-Tune:** Detects your RDNA generation at install time and configures optimal DlssNr parameters.
-* 🔧 **Engine-Specific Tuning:** Includes automatic resource barrier fixes for Unreal Engine 5 and Streamline/FrameGen isolation + exposure scanning fixes for Capcom RE Engine.
-* 🧹 **Clean 1-Click Uninstaller:** Zero leftover files, 100% reversible via `Uninstall.ps1`.
+* 🚀 **AMD Neural Rendering Support (`Mochi` / `lmxxf` / `Daniel 0.6.0`):** Experience high-end neural reconstruction natively adapted for AMD RDNA 3 & RDNA 4 GPUs.
+* ⚡ **Apex Neural Rendering Frame Generation (`ANR FG` Included):** Automatically installs [Apex Compute's ANR FG](https://github.com/apex-compute/ANR) addon (`FGInput=nvngxfg`, `FGNvngxReplacement=Apex Neural Rendering FG`) to intercept native DLSS-G calls and generate interpolated frames via Vulkan compute alongside AMD-NR visuals.
+* 🔮 **Universal DLSS-to-DLSS 5 + FSR-RR Pipeline:** Intercepts DLSS inputs in DirectX 12 titles, tunnels them through FSR 3.1 / FSR Ray Regeneration (`fsr_rr` with `RrBackend=amdnr`), and applies neural reconstruction layers (`DlssNr`) for clean image quality and Ray Reconstruction on AMD GPUs.
+* 🧠 **GPU-Aware Auto-Tune:** Detects your AMD RDNA generation at install time and configures optimal `DlssNr` parameters.
+* 🔧 **Engine-Specific Tuning:** Includes automatic resource barrier fixes for Unreal Engine 5, Streamline/FrameGen isolation + exposure scanning fixes for Capcom RE Engine, and `OverlayMenu=true` (`Insert`) fixes for GTA V Enhanced.
+* 🧹 **Clean 1-Click Uninstaller:** Zero leftover files, 100% reversible via `Uninstall.ps1` using `manifest.json`.
 
 ---
 
-## 🏛️ How ED2 Works: The "DLSS 5" Neural Tunnel
+## 🏛️ How ED2 Works: "DLSS 5" Visuals + ANR Frame Generation
 
-Envy-Diamond-2 (ED2) is a generic translation architecture designed to achieve neural rendering quality on AMD hardware:
+Envy-Diamond-2 (ED2) orchestrates AMD-NR, OptiScaler, and Apex Neural Rendering FG into one automated setup:
 
 ```
-[ Game Engine (UE5 / RE Engine) ]
+[ Game Engine (DX12 / Vulkan / UE5 / RE Engine) ]
                │
-               ▼  (Game Menu: Select "DLSS" / "DLSS Ray Reconstruction")
-[ OptiScaler Proxy (dxgi.dll / winmm.dll / version.dll) ]  <── RTX Spoofing (RTX 3090)
+               ▼  (Game Menu: Select "DLSS", "DLSS Ray Reconstruction" & "DLSS Frame Gen")
+[ OptiScaler + AMD-NR Proxy (dxgi.dll / winmm.dll / version.dll) ]  <── RTX Spoofing
                │
-               ├─► [ AMD Neural Reconstruction Layer (DlssNr / AmdLook) ]
-               │     • dlssnr_amd_pass1..3.dll
-               │     • dlssnr_on_amd_weights.bin
-               │     • EnvyDynamicPacing.asi (Watchdog budget freezer)
+               ├─► [ Visuals: AMD Neural Rendering + Upscaler ]
+               │     • Mochi (MochizukiNrRuntime.dll) / lmxxf / Daniel 0.6.0
+               │     • FSR 3.1 / FSR Ray Regeneration (fsr_rr, amd_fidelityfx_denoiser_dx12.dll)
+               │
+               └─► [ FPS: Apex Neural Rendering FG (opt. -SkipAnrFg) ]
+                     • OptiScaler\custom\Apex Neural Rendering FG\dlssg\nvngx_dlssg.dll
+                     • Vulkan compute frame interpolation (FGInput=nvngxfg)
                │
                ▼
-[ FSR 3.1 Super-Resolution Tunnel (Dx12Upscaler=ffx) ]
-               │
-               ▼
-[ High-Fidelity "DLSS 5" Output on AMD RDNA 3 / 4 ]
+[ High-Fidelity "DLSS 5" Visuals + Neural Frame Generation on AMD Radeon ]
 ```
 
-1. **Select DLSS in the game:** The user selects **DLSS** in the game's graphics settings (spoofed adapter makes the game expose DLSS).
-2. **Interception:** OptiScaler intercepts the DLSS call and feeds the motion vectors, depth, and color buffers into the pre-SR pipeline.
-3. **Neural Enhancement:** The AMD HIP neural passes apply model weights (`dlssnr_on_amd_weights.bin`) and spatial reconstruction (`AmdLook`).
-4. **FSR Tunnel:** The enhanced active-resolution signal is resolved through AMD FidelityFX (`ffx`), yielding a reconstructed "DLSS 5" image with maximum stability and fidelity.
+1. **Select DLSS + Frame Gen in the game:** Choose **DLSS** (plus **Ray Reconstruction** and **DLSS Frame Generation** where supported).
+2. **Visual Neural Enhancement:** OptiScaler routes the game's buffers through AMD-NR (`Mochi`, `lmxxf`, or `Daniel 0.6.0`) and upscales via `fsr_rr` / `ffx` with `SkipReset=true`.
+3. **ANR Frame Generation (FPS):** When the game activates native DLSS Frame Generation (`slDLSSGSetOptions`), OptiScaler forwards DLSS-G calls directly to **Apex Neural Rendering FG**, generating smooth interpolated frames on AMD Radeon GPUs (RX 5000 / 6000 / 7000 / 9000 series). *(In titles that keep DLSS-G `OFF` on AMD, ANR FG loads cleanly and stays idle).*
 
 ---
 
@@ -170,7 +170,11 @@ Double-click `Setup.bat` (or run `.\Setup.GUI.ps1`), click **Browse...**, select
 
 ### 3. PowerShell CLI
 ```powershell
+# Default install (AMD-NR + Apex Neural Rendering FG included)
 .\Setup.Install.ps1 -GameDir "E:\Steam\steamapps\common\YourGame"
+
+# Optional: install AMD-NR without ANR FG
+.\Setup.Install.ps1 -GameDir "E:\Steam\steamapps\common\YourGame" -SkipAnrFg
 ```
 
 ---
@@ -211,8 +215,8 @@ When running ED2 with Capcom RE Engine games that integrate NVIDIA Streamline, s
 3. **DLSS Ray Reconstruction without Daniel 0.8.0 (`fsr_rr`):**
    * Setting `Dx12Upscaler = fsr_rr` (with `[FSR-RR] RrBackend = amdnr`) serves in-game DLSS Ray Reconstruction (`DLSSD`) calls on RDNA 4 via AMD's bundled `amd_fidelityfx_denoiser_dx12.dll` — **no Daniel 0.8.0 (`AMDNR-NeuralHub-080\neuralhub_host.dll`) required**.
    * Keeping `Dx12Upscaler = dlssd` requires Daniel 0.8.0 (`neuralhub_host.dll`), which must match the verified release installed through `AMDNR-Launcher`.
-4. **Optional ANR Frame Generation (`apex-compute/ANR`):**
-   * Tested alongside AMD-NR R22 (`FG-V.B15` addon: `FGInput=nvngxfg`, `FGNvngxReplacement=Apex Neural Rendering FG`) on **AMD Radeon AI PRO R9700** (RDNA 4) in GTA V Enhanced: ANR FG generates interpolated frames via Vulkan compute once the game activates DLSS Frame Generation (`slDLSSGSetOptions`).
+4. **ANR Frame Generation (`apex-compute/ANR`, Included by Default):**
+   * Tested alongside AMD-NR R22 (`FG-V.B15` addon; installer pulls the latest `anr-fg-*-addon.zip` release with SHA-256 verification and configures `FGInput=nvngxfg`, `FGNvngxReplacement=Apex Neural Rendering FG`) on **AMD Radeon AI PRO R9700** (RDNA 4) in GTA V Enhanced: ANR FG generates interpolated frames via Vulkan compute once the game activates DLSS Frame Generation (`slDLSSGSetOptions`).
    * In titles where the game itself keeps DLSS-G `OFF` on AMD (e.g., *Palworld*), ANR FG initializes cleanly but remains idle (`Current DLSSG state: OFF`).
 5. **Story Mode vs. GTA Online (BattlEye Safety):**
    * **Never** launch GTA Online with `dxgi.dll`, `OptiScaler/`, `dlssnr*`, or any proxy/mod files inside the game directory — BattlEye blocks `dxgi.dll` and using DLL injection online risks an account ban.
@@ -233,6 +237,24 @@ ModifyBufferState=true
 ModifySCIndex=true
 ```
 This guarantees the proxy passes `ResizeBuffers` events seamlessly to the game engine, completely eliminating main menu initialization crashes without requiring manual INI tweaks.
+
+---
+
+## 🙏 Credits, Acknowledgments & Upstream Licenses
+
+Envy-Diamond-2 (ED2) is strictly an automated online installer and configuration wrapper — **huge thanks to all the upstream developers and open-source contributors** whose work makes Neural Rendering and Frame Generation possible on AMD Radeon GPUs. No third-party binaries are bundled in this repository; `Setup.Install.ps1` downloads official packages directly from their authors' GitHub releases at runtime under their respective licenses:
+
+| Project & Author | Role in Stack | License & Notes |
+| --- | --- | --- |
+| **[Apex Neural Rendering (ANR)](https://github.com/apex-compute/ANR)** by **[Apex Compute](https://apexcompute.com/neural-rendering)** | **ANR FG** (Vulkan compute neural Frame Generation addon) | Official beta addon (`anr-fg-*-addon.zip`) fetched directly from `apex-compute/ANR` with SHA-256 verification (*source code coming soon*; `nr-record` source in repo) |
+| **[AMDNR (`AMD-NR---OptiScaler`)](https://github.com/3zwr1/AMD-NR---OptiScaler)** by **3zwr1** | Core AMD Neural Rendering pipeline, Ray Regeneration rules, `c32w`/`fastk2` kernels & OptiScaler R22+ host | **GNU GPL v3** (with additional attribution terms per `AMDNR_NOTICE.txt` §3–4: *AMDNR by 3zwr1*) |
+| **[OptiScaler](https://github.com/optiscaler/OptiScaler)** by the **OptiScaler Contributors** | Base upscaler/FrameGen proxy, Streamline/NGX hooks & in-game overlay | **GNU GPL v3** |
+| **[DLSS-NR-on-AMD](https://github.com/danielblnc/DLSS-NR-on-AMD)** by **Daniel Blanco (`danielblnc`)** | Original DLSS-NR on AMD runtime (`dlssnr_amd_pass1..3.dll` & NeuralHub) | **All Rights Reserved** — fetched unmodified from official releases with prominent attribution; do not repack |
+| **[dlss5-on-amd-9070xt-porting](https://github.com/lmxxf/dlss5-on-amd-9070xt-porting)** by **Kien (`lmxxf`)** | Open-source `lmxxf` neural network port, kernels & runtime | **MIT License** |
+| **Mochi** by **mochizuki0323** | `MochizukiNrRuntime.dll` (Mochi 0.0.8.2) & public Mochi 0.0.7 model tool | **MIT License** |
+| **Dagherbou (`OptiScaler_DLSSNR`), wilsjo2, Matheus & TheAutomatic (`dlss-5-amd-project`)** | Foundational pre-SR DLSS-NR code, snapshot bookkeeping & `lmxxf` C++ runtime glue | **GNU GPL v3 / MIT License** |
+| **[ReShade](https://reshade.me/)** by **crosire**, **RenoDX**, **zgauthier2000 (`cyboman`)** | Coexistence detection, colour composition maths & shader overrides | **BSD-3-Clause** / respective licenses |
+| **[HelixSR](https://github.com/lonewolf0622/HelixSR)** (`lonewolf0622`), **[d4r](https://github.com/countervolts/d4r)** (`countervolts`), **AMD FidelityFX SDK**, **Intel XeSS** & **Microsoft DirectX** | Optional ecosystem providers & vendor SDK libraries | HelixSR Freeware / **Apache-2.0** / **MIT** / vendor EULAs |
 
 ---
 
